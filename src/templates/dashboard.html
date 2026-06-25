@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+{% block content %}
+
+{% if stats.is_demo %}
+<div class="banner-demo">
+  ⚠️ Đang dùng <b>dữ liệu mẫu (mock)</b> — không phải giá thật. Chạy
+  <code>python src/crawler.py</code> rồi <code>python src/import_data.py</code> để nạp data thật từ batdongsan.
+</div>
+{% endif %}
+
+<div class="kpis">
+  <div class="kpi">
+    <div class="v">{{ stats.gia_median_m2|int }}<span class="u">tr/m²</span></div>
+    <div class="l">Giá/m² trung vị</div>
+  </div>
+  <div class="kpi">
+    <div class="v">{{ total }}</div>
+    <div class="l">Tổng tin · {{ stats.n_phuong }} phường</div>
+  </div>
+  <div class="kpi">
+    <div class="v">{{ stats.gia_p25 }}–{{ stats.gia_p75 }}<span class="u">tỷ</span></div>
+    <div class="l">Khoảng giá phổ biến (P25–P75)</div>
+  </div>
+  <div class="kpi">
+    <div class="v">{{ stats.dt_median|int }}<span class="u">m²</span></div>
+    <div class="l">Diện tích trung vị</div>
+  </div>
+</div>
+
+<div class="grid2">
+  <div class="card">
+    <h2>Giá/m² trung bình theo phường <span class="muted">(triệu/m² · P = Phường · phường có ≥5 tin)</span></h2>
+    <canvas id="barChart" height="220"></canvas>
+  </div>
+  <div class="card">
+    <h2>Diện tích vs Giá <span class="muted">(phát hiện outlier)</span></h2>
+    <canvas id="scatterChart" height="220"></canvas>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Bộ lọc</h2>
+  <form method="get" class="filters">
+    <div>
+      <label>Phường</label>
+      <select name="phuong">
+        <option value="">Tất cả</option>
+        {% for w in wards %}
+        <option value="{{ w }}" {% if filters.phuong == w %}selected{% endif %}>P{{ w }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label>Loại đường</label>
+      <select name="loai_duong">
+        <option value="">Tất cả</option>
+        {% for k, v in loai_label.items() %}
+        <option value="{{ k }}" {% if filters.loai_duong == k %}selected{% endif %}>{{ v }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div><label>Giá từ (tỷ)</label><input type="number" step="0.1" name="gia_min" value="{{ filters.gia_min or '' }}"></div>
+    <div><label>Giá đến (tỷ)</label><input type="number" step="0.1" name="gia_max" value="{{ filters.gia_max or '' }}"></div>
+    <div><label>DT từ (m²)</label><input type="number" name="dt_min" value="{{ filters.dt_min or '' }}"></div>
+    <div style="display:flex; gap:8px; align-items:end;">
+      <button type="submit">Lọc</button>
+      <a class="btn-clear" href="/">Xóa</a>
+    </div>
+  </form>
+</div>
+
+<div class="card">
+  <h2>Danh sách tin ({{ listings|length }})</h2>
+  <div style="overflow-x:auto;">
+  <table>
+    <thead>
+      <tr>
+        <th>Tiêu đề</th><th>Phường</th><th>Loại</th><th>DT (m²)</th>
+        <th>Tầng</th><th>Giá (tỷ)</th><th>Giá/m²</th><th>Nguồn</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for l in listings %}
+      <tr>
+        <td>{{ l.tieu_de }}</td>
+        <td>{% if l.phuong %}P{{ l.phuong }}{% else %}—{% endif %}</td>
+        <td>
+          {% if l.loai_duong == 'mat_tien' %}<span class="tag tag-mt">Mặt tiền</span>
+          {% elif l.loai_duong == 'hxh' %}<span class="tag tag-hxh">HXH</span>
+          {% elif l.loai_duong == 'hem' %}<span class="tag tag-hem">Hẻm</span>
+          {% else %}—{% endif %}
+        </td>
+        <td>{{ l.dien_tich or '—' }}</td>
+        <td>{{ l.so_tang or '—' }}</td>
+        <td>{{ l.gia or '—' }}</td>
+        <td>{{ l.gia_per_m2 or '—' }}</td>
+        <td>{% if l.source == 'thuc_te' %}<span class="tag tag-real">Giá thật</span>{% else %}Rao{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+
+<script>
+  const barData = {{ bar_data|safe }};
+  const scatterRaw = {{ scatter_data|safe }};
+
+  new Chart(document.getElementById('barChart'), {
+    type: 'bar',
+    data: {
+      labels: barData.map(d => 'P' + d.phuong),
+      datasets: [{
+        label: 'Giá/m² TB (triệu)',
+        data: barData.map(d => d.avg_gia_m2),
+        backgroundColor: '#1f6feb',
+      }]
+    },
+    options: {
+      plugins: { legend: { display: false },
+        tooltip: { callbacks: {
+          title: (items) => 'Phường ' + barData[items[0].dataIndex].phuong,
+          afterLabel: (c) => 'n = ' + barData[c.dataIndex].n + ' tin' } } },
+      scales: {
+        x: { title: { display: true, text: 'Phường (P)' } },
+        y: { beginAtZero: true, title: { display: true, text: 'Giá/m² (triệu)' } }
+      }
+    }
+  });
+
+  const colorByType = { mat_tien: '#1f6feb', hxh: '#16a34a', hem: '#94a3b8' };
+  new Chart(document.getElementById('scatterChart'), {
+    type: 'scatter',
+    data: {
+      datasets: [{
+        data: scatterRaw.map(d => ({ x: d.dien_tich, y: d.gia, t: d.tieu_de })),
+        pointBackgroundColor: scatterRaw.map(d => colorByType[d.loai_duong] || '#94a3b8'),
+        pointRadius: 5,
+      }]
+    },
+    options: {
+      plugins: { legend: { display: false },
+        tooltip: { callbacks: {
+          label: (c) => `${c.raw.x} m² · ${c.raw.y} tỷ`,
+          afterLabel: (c) => c.raw.t } } },
+      scales: {
+        x: { title: { display: true, text: 'Diện tích (m²)' } },
+        y: { title: { display: true, text: 'Giá (tỷ)' }, beginAtZero: true }
+      }
+    }
+  });
+</script>
+{% endblock %}

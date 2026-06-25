@@ -1,0 +1,15 @@
+# Data & DB — đưa lên repo để mai clone chạy ngay (theo quyết định team).
+# File crawl thử nghiệm thì bỏ qua.
+data/crawl_test.json
+
+# Secrets — KHÔNG BAO GIỜ commit
+.env
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Playwright
+/test-results/
