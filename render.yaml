@@ -1,0 +1,14 @@
+# Render.com blueprint — deploy 1 chạm.
+# Vào https://render.com → New → Blueprint → trỏ tới repo này.
+services:
+  - type: web
+    name: gia-dat-dashboard
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --chdir src --bind 0.0.0.0:$PORT --workers 2 --timeout 60
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.6"
+      - key: SECRET_KEY
+        generateValue: true   # Render tự sinh khóa ngẫu nhiên

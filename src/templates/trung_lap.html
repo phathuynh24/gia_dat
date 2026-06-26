@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="tabs">
+  {% for k, v in loai_bds_label.items() %}
+  <a class="tab {% if loai_bds == k %}active{% endif %}" href="/trung-lap?loai_bds={{ k }}">{{ v }}</a>
+  {% endfor %}
+</div>
+
+<div class="card">
+  <h2>🎯 Săn hàng ngộp / Check môi giới kê giá — {{ loai_bds_label[loai_bds] }}
+      <span class="muted">({{ clusters|length }} cụm nghi trùng)</span></h2>
+  <p class="muted">Các tin có cùng vị trí/diện tích/đặc điểm được gom thành 1 <b>cụm</b> —
+     nhiều khả năng là cùng 1 BĐS do nhiều môi giới rao. Xem <b>mức độ chênh lệch giá</b> để biết
+     mức sàn đàm phán. Cụm nhiều tin + chênh lệch giá lớn xếp lên đầu.</p>
+</div>
+
+{% if clusters|length == 0 %}
+<div class="card"><p class="muted">Không phát hiện cụm tin trùng cho loại này.</p></div>
+{% endif %}
+
+{% for c in clusters %}
+<div class="card">
+  <div style="display:flex; justify-content:space-between; align-items:start; flex-wrap:wrap; gap:12px;">
+    <div>
+      <h2 style="margin-bottom:6px;">
+        {{ c.phuong|wardlabel }} · {{ c.dien_tich }}m²
+        {% if loai_bds == 'chung_cu' %}
+          {% if c.du_an %}· {{ c.du_an }}{% endif %}{% if c.so_pn %} · {{ c.so_pn }}PN{% endif %}
+        {% else %}
+          {% if c.so_tang %}· {{ c.so_tang }} tầng{% endif %}
+          {% if c.loai_duong %}· {{ loai_label.get(c.loai_duong, c.loai_duong) }}{% endif %}
+        {% endif %}
+        <span class="tag tag-real">{{ c.n }} môi giới rao</span>
+      </h2>
+      <p class="muted" style="margin:0;">
+        Mức độ chênh lệch giá<span class="help" data-tip="Khoảng cách giữa giá rao rẻ nhất và đắt nhất cho CÙNG một căn giữa các môi giới. Chênh càng lớn, môi giới kê giá càng nhiều — bám giá đáy mà đàm phán.">?</span>:
+        <b>{{ c.gia_min }} – {{ c.gia_max }} tỷ</b>
+        (chênh {{ c.bien_do }} tỷ) · trung vị <b>{{ c.gia_median }} tỷ</b>
+        → giá sàn đàm phán ≈ <b>{{ c.gia_min }} tỷ</b>
+      </p>
+    </div>
+    <a class="tab" href="/vay-von?gia={{ c.gia_min }}">Tính vay (giá sàn)</a>
+  </div>
+  <div style="overflow-x:auto; margin-top:10px;">
+  <table>
+    <thead><tr><th>Giá rao (tỷ)</th><th>Giá/m²</th><th>Tiêu đề</th></tr></thead>
+    <tbody>
+      {% for it in c.tin %}
+      <tr>
+        <td><b>{{ it.gia }}</b>{% if it.gia == c.gia_min %} <span class="tag tag-hxh">thấp nhất</span>{% endif %}</td>
+        <td>{{ it.gia_per_m2 or '—' }}</td>
+        <td>{% if it.url %}<a href="{{ it.url }}" target="_blank" style="color:var(--accent);text-decoration:none;">{{ it.tieu_de }}</a>{% else %}{{ it.tieu_de }}{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endfor %}
+
+{% endblock %}

@@ -10,6 +10,8 @@ Ví dụ:
         so_tang: 3, gia: 6.5, ...}
 """
 
+from __future__ import annotations  # cho phép cú pháp str | None trên Python 3.9
+
 import re
 import unicodedata
 
@@ -152,11 +154,77 @@ def parse_alley_width(text: str):
 
 
 # ---------------------------------------------------------------------------
+# Loại BĐS: nhà riêng | chung cư | đất nền
+# ---------------------------------------------------------------------------
+
+def parse_property_type(text: str):
+    """
+    Trả về 'chung_cu' | 'dat_nen' | 'nha_rieng'.
+    Ưu tiên chung cư (tín hiệu rõ), rồi đất nền (có 'đất' và không phải 'nhà').
+    """
+    t = _strip_accents(text.lower())
+    if re.search(r"chung cu|can ho|\bch\b|officetel|penthouse|duplex|shophouse|\bapartment\b", t):
+        return "chung_cu"
+    # Đất nền / đất thổ cư / lô đất — nhưng 'bán nhà đất' vẫn là nhà
+    if re.search(r"\bnha\b|biet thu|villa", t):
+        return "nha_rieng"
+    if re.search(r"\bdat\b|dat nen|lo dat|nen dat|tho cu|dat tho", t):
+        return "dat_nen"
+    return "nha_rieng"
+
+
+def parse_apartment_floor(text: str):
+    """Tầng căn hộ trong toà nhà: 'tầng 20', 'lầu 15' (số ĐỨNG SAU, khác nhà phố)."""
+    t = _strip_accents(text.lower())
+    m = re.search(r"(?:tang|lau|tret)\s*(\d{1,2})\b", t)
+    if m:
+        n = int(m.group(1))
+        if 1 <= n <= 60:
+            return n
+    return None
+
+
+def parse_bedrooms(text: str):
+    """Số phòng ngủ cho chung cư: '2PN', '2 phòng ngủ', '2 phong ngu'."""
+    t = _strip_accents(text.lower())
+    m = re.search(r"(\d)\s*(?:pn\b|phong ngu|p\.?n\b)", t)
+    if m:
+        n = int(m.group(1))
+        if 0 < n <= 6:
+            return n
+    return None
+
+
+# Tên dự án chung cư thường gặp ở Bình Thạnh (mở rộng khi crawl thêm)
+_PROJECTS = [
+    ("vinhomes central park", "Vinhomes Central Park"),
+    ("vinhomes tan cang", "Vinhomes Central Park"),
+    ("the manor", "The Manor"),
+    ("sunwah pearl", "Sunwah Pearl"),
+    ("saigon pearl", "Saigon Pearl"),
+    ("pearl plaza", "Pearl Plaza"),
+    ("city garden", "City Garden"),
+    ("the ascent", "The Ascent"),
+    ("opal", "Opal Saigon"),
+    ("q2 thao dien", "Q2 Thảo Điền"),
+]
+
+
+def parse_project(text: str):
+    """Trích tên dự án chung cư nếu khớp danh sách đã biết."""
+    t = _strip_accents(text.lower())
+    for key, name in _PROJECTS:
+        if key in t:
+            return name
+    return None
+
+
+# ---------------------------------------------------------------------------
 # Phường + hướng
 # ---------------------------------------------------------------------------
 
 def parse_ward(text: str):
-    """Trả về số/tên phường dạng chuỗi, vd '26', '13', 'Phước Long'."""
+    """Trả về số phường dạng chuỗi, vd '26', '13' (dùng cho parse tiêu đề)."""
     t = _strip_accents(text.lower())
     m = re.search(r"\bp[\.\s]*?(\d{1,2})\b", t)
     if m:
@@ -164,6 +232,27 @@ def parse_ward(text: str):
     m = re.search(r"phuong\s+(\d{1,2})\b", t)
     if m:
         return m.group(1)
+    return None
+
+
+def extract_ward(dia_chi: str):
+    """
+    Trích PHƯỜNG từ địa chỉ chuẩn (giữ nguyên dấu): hỗ trợ cả phường SỐ và phường CHỮ.
+    'Phường 5 (P. Bình Lợi Trung mới)' -> '5'
+    'Phường Phú Mỹ, Quận 7'           -> 'Phú Mỹ'
+    'Thị trấn Nhà Bè, Huyện Nhà Bè'    -> 'Nhà Bè'
+    'Xã Tân Nhựt, Huyện Bình Chánh'    -> 'Tân Nhựt'
+    """
+    if not dia_chi:
+        return None
+    seg = dia_chi.split(",")[0]                 # phần trước dấu phẩy = phường/xã
+    seg = re.sub(r"\(.*?\)", "", seg).strip("· \n\t")  # bỏ ngoặc + ký tự thừa
+    m = re.match(r"(?:Phường|Phuong|Thị trấn|Thi tran|TT|Xã|Xa|X|P)\.?\s+(.+)", seg, re.IGNORECASE)
+    if m:
+        name = m.group(1).strip()
+        return name or None
+    if seg.isdigit():                           # 'Phường' bị thiếu nhưng còn số
+        return seg
     return None
 
 
@@ -184,27 +273,66 @@ def parse_direction(text: str):
 
 
 # ---------------------------------------------------------------------------
+# Lọc tin rác (SRS Bước 1 — Data Cleaning)
+# ---------------------------------------------------------------------------
+
+# Domain BĐS hợp lệ; URL ngoài danh sách này coi là quảng cáo/landing page dự án.
+_VALID_DOMAINS = ("batdongsan.com.vn", "nhatot.com", "chotot.com", "mogi.vn",
+                  "alonhadat.com.vn", "guland.vn")
+
+
+def is_valid_listing(parsed: dict):
+    """
+    Trả (hợp_lệ: bool, lý_do: str|None). Loại tin rác:
+      - URL trỏ landing page quảng cáo (ngoài domain BĐS đã biết)
+      - thiếu giá hoặc diện tích (không phân tích được)
+      - giá/m² phi lý (<1 hoặc >2000 triệu/m² — thường do parse sai)
+    """
+    url = parsed.get("url") or ""
+    if url and not any(d in url for d in _VALID_DOMAINS):
+        return False, "url_quang_cao"
+    if parsed.get("gia") is None or parsed.get("dien_tich") is None:
+        return False, "thieu_gia_dt"
+    gm2 = parsed.get("gia_per_m2")
+    if gm2 is not None and (gm2 < 1 or gm2 > 2000):
+        return False, "gia_phi_ly"
+    return True, None
+
+
+# ---------------------------------------------------------------------------
 # Parse tổng hợp 1 tin
 # ---------------------------------------------------------------------------
 
-def parse_listing(title: str, description: str = "", quan: str = "Bình Thạnh") -> dict:
-    """Parse tiêu đề + mô tả -> dict các trường chuẩn."""
+def parse_listing(title: str, description: str = "", quan: str = "Bình Thạnh",
+                  loai_bds: str | None = None) -> dict:
+    """Parse tiêu đề + mô tả -> dict các trường chuẩn.
+
+    loai_bds: nếu biết trước từ nguồn crawl (vd URL chung cư) thì truyền vào;
+    không thì tự suy từ nội dung tin.
+    """
     text = f"{title or ''} {description or ''}".strip()
+    loai_bds = loai_bds or parse_property_type(text)
 
     dien_tich, ngang, dai = parse_area(text)
     gia = parse_price(text)
     gia_per_m2 = round(gia / dien_tich * 1000, 2) if (gia and dien_tich) else None  # triệu/m2
 
+    # Chung cư: so_tang = tầng căn hộ trong toà ('tầng 20'); nhà phố: số tầng xây
+    so_tang = parse_apartment_floor(text) if loai_bds == "chung_cu" else parse_floors(text)
+
     return {
+        "loai_bds": loai_bds,
         "tieu_de": (title or "").strip(),
         "quan": quan,
         "phuong": parse_ward(text),
-        "loai_duong": parse_road_type(text),
-        "rong_hem": parse_alley_width(text),
+        "loai_duong": None if loai_bds == "chung_cu" else parse_road_type(text),
+        "rong_hem": None if loai_bds == "chung_cu" else parse_alley_width(text),
+        "du_an": parse_project(text) if loai_bds == "chung_cu" else None,
+        "so_pn": parse_bedrooms(text) if loai_bds == "chung_cu" else None,
         "dien_tich": dien_tich,
         "ngang": ngang,
         "dai": dai,
-        "so_tang": parse_floors(text),
+        "so_tang": so_tang,
         "huong": parse_direction(text),
         "gia": gia,                 # tỷ đồng
         "gia_per_m2": gia_per_m2,   # triệu đồng/m2
@@ -217,14 +345,16 @@ def parse_listing(title: str, description: str = "", quan: str = "Bình Thạnh"
 
 def parse_crawled(record: dict, quan: str = "Bình Thạnh") -> dict:
     """
-    record từ crawler: {title, raw_extra ('4,86 tỷ 59,4 m²'), dia_chi ('Phường 5 ...'), url}
+    record từ crawler: {title, raw_extra ('4,86 tỷ 59,4 m²'), dia_chi ('Phường 5 ...'),
+    url, loai_bds (tùy chọn — hint từ URL chuyên mục crawl)}
     Ưu tiên giá/diện tích từ raw_extra và phường từ dia_chi (chính xác hơn parse tiêu đề).
     """
     title = record.get("title") or ""
     extra = record.get("raw_extra") or ""
     dia_chi = (record.get("dia_chi") or "").replace("\n", " ").strip("· ").strip()
 
-    parsed = parse_listing(title, quan=quan)  # loai_duong, so_tang, huong, hướng...
+    # loai_bds: dùng hint từ crawler nếu có, không thì để parse_listing tự suy
+    parsed = parse_listing(title, quan=quan, loai_bds=record.get("loai_bds"))
 
     if extra:  # giá + diện tích từ block cấu hình của card
         p = parse_price(extra)
@@ -234,7 +364,7 @@ def parse_crawled(record: dict, quan: str = "Bình Thạnh") -> dict:
         if a is not None:
             parsed["dien_tich"], parsed["ngang"], parsed["dai"] = a, ng, da
 
-    w = parse_ward(dia_chi)  # phường từ địa chỉ chuẩn
+    w = extract_ward(dia_chi)  # phường từ địa chỉ chuẩn (số hoặc chữ)
     if w:
         parsed["phuong"] = w
 

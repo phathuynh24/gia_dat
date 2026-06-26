@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="card">
+  <h2>Tính vay vốn mua nhà</h2>
+  <p class="muted">Nhập giá nhà → hệ thống tính <b>vốn tự có tối thiểu</b>, số tiền vay,
+     khoản trả góp hàng tháng và tổng lãi theo thời gian. Mặc định vay 70% (vốn tự có 30%).</p>
+  <form method="get" class="filters" style="grid-template-columns: repeat(5, 1fr);">
+    <div>
+      <label>Giá nhà (tỷ) *</label>
+      <input type="number" step="0.1" name="gia" value="{{ sel.gia or '' }}" required>
+    </div>
+    <div>
+      <label>Tỷ lệ vay (%)</label>
+      <input type="number" step="5" name="ty_le_vay" value="{{ sel.ty_le_vay }}">
+    </div>
+    <div>
+      <label>Lãi suất (%/năm)</label>
+      <input type="number" step="0.1" name="lai_suat" value="{{ sel.lai_suat }}">
+    </div>
+    <div>
+      <label>Thời hạn (năm)</label>
+      <input type="number" step="1" name="nam" value="{{ sel.nam }}">
+    </div>
+    <div style="display:flex; align-items:end;"><button type="submit">Tính</button></div>
+  </form>
+</div>
+
+{% if result %}
+<div class="kpis">
+  <div class="kpi">
+    <div class="v">{{ result.von_tu_co }}<span class="u">tỷ</span></div>
+    <div class="l">Vốn tự có tối thiểu ({{ 100 - result.ty_le_vay }}%)</div>
+  </div>
+  <div class="kpi">
+    <div class="v">{{ result.von_vay }}<span class="u">tỷ</span></div>
+    <div class="l">Số tiền vay ngân hàng ({{ result.ty_le_vay }}%)</div>
+  </div>
+  <div class="kpi">
+    <div class="v">{{ result.tra_thang }}<span class="u">tr/th</span></div>
+    <div class="l">Trả góp hàng tháng (trung bình)</div>
+  </div>
+  <div class="kpi">
+    <div class="v">{{ result.tong_lai }}<span class="u">tỷ</span></div>
+    <div class="l">Tổng lãi phải trả ({{ result.nam }} năm)</div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Lãi & dư nợ theo thời gian
+      <span class="muted">(vay {{ result.von_vay }} tỷ · {{ result.lai_suat }}%/năm · {{ result.nam }} năm)</span></h2>
+  <canvas id="loanChart" height="90"></canvas>
+  <div style="overflow-x:auto; margin-top:16px;">
+  <table>
+    <thead><tr>
+      <th>Sau năm</th><th>Dư nợ còn lại (tỷ)</th><th>Gốc đã trả (tỷ)</th><th>Lãi luỹ kế (tỷ)</th>
+    </tr></thead>
+    <tbody>
+      {% for y in result.lich %}
+      {% if y.nam % 2 == 1 or y.nam == result.nam %}
+      <tr>
+        <td>{{ y.nam }}</td>
+        <td>{{ y.du_no }}</td>
+        <td>{{ y.goc_da_tra }}</td>
+        <td>{{ y.lai_luy_ke }}</td>
+      </tr>
+      {% endif %}
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <p class="muted" style="margin-top:12px;">⚠️ Tính theo <b>trả góp đều</b> (annuity) với lãi suất cố định —
+     thực tế ngân hàng thường có lãi ưu đãi giai đoạn đầu rồi thả nổi. Con số mang tính tham khảo.</p>
+</div>
+
+<script>
+  const lich = {{ result.lich|tojson }};
+  new Chart(document.getElementById('loanChart'), {
+    type: 'line',
+    data: {
+      labels: lich.map(d => 'Năm ' + d.nam),
+      datasets: [
+        { label: 'Dư nợ còn lại (tỷ)', data: lich.map(d => d.du_no),
+          borderColor: '#1f6feb', backgroundColor: 'rgba(31,111,235,.1)', fill: true, tension: .2 },
+        { label: 'Lãi luỹ kế (tỷ)', data: lich.map(d => d.lai_luy_ke),
+          borderColor: '#d97706', backgroundColor: 'rgba(217,119,6,.08)', fill: true, tension: .2 },
+      ]
+    },
+    options: {
+      plugins: { legend: { position: 'bottom' } },
+      scales: { y: { beginAtZero: true, title: { display: true, text: 'Tỷ đồng' } } }
+    }
+  });
+</script>
+{% else %}
+<div class="card"><p class="muted">Nhập giá nhà để tính phương án vay vốn.
+  Mẹo: từ trang <a href="/so-sanh">So sánh khu vực</a>, bấm "Tính vay" ở mỗi dòng để điền sẵn giá.</p></div>
+{% endif %}
+
+{% endblock %}

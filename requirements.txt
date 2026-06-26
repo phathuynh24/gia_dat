@@ -1,8 +1,6 @@
-# Web app
+# Web runtime (đủ để chạy/deploy dashboard)
 Flask==3.1.0
+gunicorn==23.0.0
 
-# Crawler (chạy thủ công, optional cho việc lấy data thật)
-playwright==1.49.0
-
-# Optional: parse bằng Claude API (nếu có ANTHROPIC_API_KEY). Parser mặc định dùng regex, không cần cài.
-anthropic==0.42.0
+# Crawler & parse-by-Claude là việc THỦ CÔNG, chạy ở máy local — KHÔNG cần trên server.
+# Cài riêng khi crawl:  pip install -r requirements-crawl.txt

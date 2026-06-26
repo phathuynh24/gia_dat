@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% block content %}
+
+{# Tabs loại BĐS — giữ nguyên mode khi đổi loại #}
+<div class="tabs">
+  {% for k, v in loai_bds_label.items() %}
+  <a class="tab {% if loai_bds == k %}active{% endif %}"
+     href="/so-sanh?loai_bds={{ k }}&mode={{ mode }}">{{ v }}</a>
+  {% endfor %}
+</div>
+
+{# Chuyển chế độ: theo diện tích (Mục 2) vs theo ngân sách (Mở rộng 1) #}
+<div class="tabs" style="margin-bottom:16px;">
+  <a class="tab {% if mode == 'dien_tich' %}active{% endif %}"
+     href="/so-sanh?loai_bds={{ loai_bds }}&mode=dien_tich">📐 Theo diện tích</a>
+  <a class="tab {% if mode == 'ngan_sach' %}active{% endif %}"
+     href="/so-sanh?loai_bds={{ loai_bds }}&mode=ngan_sach">💰 Theo ngân sách</a>
+</div>
+
+<div class="card">
+  {% if mode == 'dien_tich' %}
+  <h2>So sánh giá theo diện tích mục tiêu — {{ loai_bds_label[loai_bds] }}</h2>
+  <p class="muted">Nhập diện tích cần tìm → hệ thống xếp hạng các phường theo giá ước tính
+     (dựa trên giá/m² trung vị của tin cùng diện tích ±sai số). Nhập thêm ngân sách để đối chiếu.</p>
+  <form method="get" class="filters" style="grid-template-columns: repeat(4, 1fr);">
+    <input type="hidden" name="loai_bds" value="{{ loai_bds }}">
+    <input type="hidden" name="mode" value="dien_tich">
+    <div>
+      <label>Diện tích mục tiêu (m²) *</label>
+      <input type="number" step="0.1" name="dien_tich" value="{{ sel.dien_tich or '' }}" required>
+    </div>
+    <div>
+      <label>Sai số diện tích</label>
+      <select name="sai_so">
+        <option value="0.05" {% if sel.sai_so == 0.05 %}selected{% endif %}>±5%</option>
+        <option value="0.1" {% if sel.sai_so == 0.1 %}selected{% endif %}>±10%</option>
+        <option value="0.15" {% if sel.sai_so == 0.15 %}selected{% endif %}>±15%</option>
+      </select>
+    </div>
+    <div>
+      <label>Ngân sách (tỷ) — tuỳ chọn</label>
+      <input type="number" step="0.1" name="ngan_sach" value="{{ sel.ngan_sach or '' }}">
+    </div>
+    <div style="display:flex; align-items:end;"><button type="submit">So sánh</button></div>
+  </form>
+  {% else %}
+  <h2>Tìm kiếm ngược theo ngân sách — {{ loai_bds_label[loai_bds] }}</h2>
+  <p class="muted">Nhập số tiền có sẵn → hệ thống cho biết với ngân sách đó, mỗi phường mua được
+     khoảng bao nhiêu m² (dựa trên giá/m² trung vị của phường).</p>
+  <form method="get" class="filters" style="grid-template-columns: repeat(3, 1fr);">
+    <input type="hidden" name="loai_bds" value="{{ loai_bds }}">
+    <input type="hidden" name="mode" value="ngan_sach">
+    <div>
+      <label>Ngân sách tối đa (tỷ) *</label>
+      <input type="number" step="0.1" name="ngan_sach" value="{{ sel.ngan_sach or '' }}" required>
+    </div>
+    <div style="display:flex; align-items:end;"><button type="submit">Tìm khu vực</button></div>
+  </form>
+  {% endif %}
+</div>
+
+{% if rows is not none %}
+  {% if rows|length == 0 %}
+  <div class="card"><p class="muted">Không đủ dữ liệu phù hợp để so sánh. Thử nới sai số hoặc đổi loại BĐS.</p></div>
+  {% else %}
+  <div class="card">
+    {% if mode == 'dien_tich' %}
+    <h2>Bảng so sánh chi phí cho căn {{ sel.dien_tich|int }}m²
+        <span class="muted">({{ rows|length }} phường · xếp theo giá tăng dần)</span></h2>
+    <div style="overflow-x:auto;">
+    <table>
+      <thead><tr>
+        <th>#</th><th>Phường</th><th>Giá/m² trung vị</th>
+        <th>Giá ước tính ({{ sel.dien_tich|int }}m²)</th><th>Số tin mẫu</th>
+        {% if sel.ngan_sach %}<th>Đánh giá ngân sách</th>{% endif %}
+        <th>Vay vốn</th>
+      </tr></thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td>{{ r.phuong|wardlabel }}</td>
+          <td>{{ r.median_m2 }} tr/m²</td>
+          <td><b>{{ r.gia_est }} tỷ</b></td>
+          <td>{{ r.n }}{% if r.it_mau %} <span class="tag tag-real">ít mẫu</span>{% endif %}</td>
+          {% if sel.ngan_sach %}
+          <td>
+            {% if r.danh_gia == 'khop' %}
+              <span class="tag tag-hxh">Khớp ngân sách{% if r.danh_gia_pct < 0 %} ({{ r.danh_gia_pct }}%){% endif %}</span>
+            {% else %}
+              <span class="tag" style="background:#fee2e2;color:#dc2626;">Vượt +{{ r.danh_gia_pct }}%</span>
+            {% endif %}
+          </td>
+          {% endif %}
+          <td><a href="/vay-von?gia={{ r.gia_est }}" style="color:var(--accent);text-decoration:none;">Tính vay →</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}
+    <h2>Với {{ sel.ngan_sach }} tỷ, mua được bao nhiêu m²?
+        <span class="muted">({{ rows|length }} phường · xếp theo diện tích giảm dần)</span></h2>
+    <div style="overflow-x:auto;">
+    <table>
+      <thead><tr>
+        <th>#</th><th>Phường</th><th>Giá/m² trung vị</th>
+        <th>Diện tích mua được</th><th>Số tin mẫu</th>
+      </tr></thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td>{{ r.phuong|wardlabel }}</td>
+          <td>{{ r.median_m2 }} tr/m²</td>
+          <td><b>{{ r.dt_est }} m²</b></td>
+          <td>{{ r.n }}{% if r.it_mau %} <span class="tag tag-real">ít mẫu</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% endif %}
+    <p class="muted" style="margin-top:12px;">⚠️ Giá ước tính dựa trên <b>trung vị</b> tin rao
+       (không phải giá đóng thật). Phường gắn nhãn <span class="tag tag-real">ít mẫu</span>
+       (&lt;3 tin) chỉ mang tính tham khảo.</p>
+  </div>
+  {% endif %}
+{% else %}
+  <div class="card"><p class="muted">
+    {% if mode == 'dien_tich' %}Nhập diện tích mục tiêu để xem bảng so sánh giữa các phường.
+    {% else %}Nhập ngân sách để xem mỗi phường mua được bao nhiêu m².{% endif %}
+  </p></div>
+{% endif %}
+
+{% endblock %}

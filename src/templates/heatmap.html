@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="tabs">
+  {% for k, v in loai_bds_label.items() %}
+  <a class="tab {% if loai_bds == k %}active{% endif %}" href="/heatmap?loai_bds={{ k }}">{{ v }}</a>
+  {% endfor %}
+</div>
+
+<div class="card">
+  <h2>Bản đồ nhiệt giá theo phường — {{ loai_bds_label[loai_bds] }}
+      <span class="muted">({{ n_points }} phường)</span></h2>
+  <p class="muted">Mỗi chấm là 1 phường đặt theo vị trí địa lý (xấp xỉ tâm phường).
+     <b>Màu càng đỏ = giá/m² càng cao</b>, chấm càng lớn = càng nhiều tin. Rê chuột để xem chi tiết.</p>
+  {% if n_points == 0 %}
+  <p class="muted">Chưa đủ dữ liệu (cần ≥3 tin/phường và có toạ độ).</p>
+  {% else %}
+  <canvas id="heatChart" height="160"></canvas>
+  <div id="legend" class="muted" style="margin-top:10px;"></div>
+  {% endif %}
+</div>
+
+{% if n_points > 0 %}
+<script>
+  const pts = {{ points|safe }};
+  const vals = pts.map(p => p.median_m2);
+  const lo = Math.min(...vals), hi = Math.max(...vals);
+  const ns = pts.map(p => p.n);
+  const nMax = Math.max(...ns);
+
+  // Màu xanh lơ → đỏ theo giá
+  function heatColor(v) {
+    const t = hi > lo ? (v - lo) / (hi - lo) : 0.5;
+    const r = Math.round(40 + t * 200);
+    const g = Math.round(150 - t * 110);
+    const b = Math.round(220 - t * 180);
+    return `rgba(${r},${g},${b},0.75)`;
+  }
+
+  new Chart(document.getElementById('heatChart'), {
+    type: 'bubble',
+    data: {
+      datasets: [{
+        data: pts.map(p => ({
+          x: p.lng, y: p.lat,
+          r: 8 + (p.n / nMax) * 22,
+          ph: p.phuong, m2: p.median_m2, n: p.n
+        })),
+        backgroundColor: pts.map(p => heatColor(p.median_m2)),
+        borderColor: 'rgba(0,0,0,.15)', borderWidth: 1,
+      }]
+    },
+    options: {
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: {
+          title: (items) => 'Phường ' + items[0].raw.ph,
+          label: (c) => `${c.raw.m2} tr/m² · ${c.raw.n} tin` } }
+      },
+      scales: {
+        x: { title: { display: true, text: 'Kinh độ (Đông →)' }, ticks: { display: false } },
+        y: { title: { display: true, text: 'Vĩ độ (↑ Bắc)' }, ticks: { display: false } }
+      }
+    }
+  });
+
+  document.getElementById('legend').innerHTML =
+    `Thang giá: <b style="color:#2896dc">${lo} tr/m²</b> (thấp) → ` +
+    `<b style="color:#e84628">${hi} tr/m²</b> (cao) · ` +
+    `toạ độ tâm phường là xấp xỉ (không có map nền do môi trường chặn tile ngoài).`;
+</script>
+{% endif %}
+
+{% endblock %}

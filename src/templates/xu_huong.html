@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="tabs">
+  {% for k, v in loai_bds_label.items() %}
+  <a class="tab {% if loai_bds == k %}active{% endif %}" href="/xu-huong?loai_bds={{ k }}">{{ v }}</a>
+  {% endfor %}
+</div>
+
+{% if has_demo %}
+<div class="banner-demo">
+  ⚠️ Đang hiển thị <b>mốc lịch sử MINH HOẠ (demo)</b> để xem giao diện — không phải biến động thật.
+  Có data thật: chạy <code>python src/snapshot.py</code> định kỳ (sau mỗi đợt crawl) để tích luỹ
+  lịch sử thật, rồi <code>python src/snapshot.py --clear-demo</code> để xoá demo.
+</div>
+{% endif %}
+
+<div class="card">
+  <h2>Xu hướng giá/m² theo thời gian — {{ loai_bds_label[loai_bds] }}</h2>
+  {% if n_dates < 2 %}
+  <p class="muted">Cần ít nhất <b>2 mốc thời gian</b> để vẽ xu hướng. Hiện có {{ n_dates }} mốc.<br>
+     Tạo mốc minh hoạ nhanh: <code>python src/snapshot.py --demo --months 6</code><br>
+     Hoặc chụp mốc thật định kỳ: <code>python src/snapshot.py</code> (nên đặt cron hàng tuần/tháng).</p>
+  {% else %}
+  <p class="muted">
+    {% if pct is not none %}
+      Biến động giá tổng từ mốc đầu → mốc cuối:
+      {% if pct >= 0 %}<b style="color:#dc2626;">+{{ pct }}%</b>
+        {% if pct >= 10 %}<span class="tag" style="background:#fee2e2;color:#dc2626;">tăng nóng — rủi ro đu đỉnh</span>{% endif %}
+      {% else %}<b style="color:#16a34a;">{{ pct }}%</b>{% endif %}
+    {% endif %}
+  </p>
+  <canvas id="trendChart" height="120"></canvas>
+  {% endif %}
+</div>
+
+{% if n_dates >= 2 %}
+<script>
+  const trend = {{ trend|safe }};
+  const palette = ['#1f6feb','#16a34a','#d97706','#7c3aed','#dc2626','#0891b2','#db2777','#65a30d'];
+  // Top phường nhiều dữ liệu nhất để vẽ line riêng (tránh rối)
+  const wardNames = Object.keys(trend.wards)
+    .sort((a,b)=> (trend.wards[b].filter(x=>x!=null).length) - (trend.wards[a].filter(x=>x!=null).length))
+    .slice(0,6);
+
+  const datasets = [{
+    label: 'Trung vị toàn quận',
+    data: trend.overall,
+    borderColor: '#111', borderWidth: 3, tension: .2, pointRadius: 3,
+  }];
+  wardNames.forEach((ph, i) => datasets.push({
+    label: isNaN(ph) ? ph : 'P' + ph,
+    data: trend.wards[ph],
+    borderColor: palette[i % palette.length], borderWidth: 1.5, tension: .2,
+    pointRadius: 2, borderDash: [4,3],
+  }));
+
+  new Chart(document.getElementById('trendChart'), {
+    type: 'line',
+    data: { labels: trend.dates, datasets },
+    options: {
+      plugins: { legend: { position: 'bottom' } },
+      interaction: { mode: 'index', intersect: false },
+      scales: { y: { title: { display: true, text: 'Giá/m² (triệu)' } } }
+    }
+  });
+</script>
+{% endif %}
+
+{% endblock %}

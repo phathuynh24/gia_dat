@@ -1,17 +1,25 @@
 {% extends "base.html" %}
 {% block content %}
 
+<div class="tabs">
+  {% for k, v in loai_bds_label.items() %}
+  <a class="tab {% if loai_bds == k %}active{% endif %}" href="/dinh-gia?loai_bds={{ k }}">{{ v }}</a>
+  {% endfor %}
+</div>
+
 <div class="card">
-  <h2>Định giá nhanh theo căn tương đồng (comp method)</h2>
+  <h2>Định giá nhanh — {{ loai_bds_label[loai_bds] }}
+      <span class="help" data-tip="Phương pháp so sánh thị trường: tự động tìm và đối chiếu với 5-10 bất động sản tương đồng nhất đang bán sát khu vực bạn nhập, rồi suy ra dải giá.">?</span></h2>
   <p class="muted">Nhập thông số căn cần định giá → ra dải giá tham chiếu P25 / P50 / P75
-     dựa trên các căn cùng phường, cùng loại đường, diện tích ±20%.</p>
+     dựa trên các tin <b>cùng loại</b>, cùng phường{% if loai_bds != 'chung_cu' %}, cùng loại đường{% endif %}, diện tích ±20%.</p>
   <form method="get" class="filters" style="grid-template-columns: repeat(4, 1fr);">
+    <input type="hidden" name="loai_bds" value="{{ loai_bds }}">
     <div>
       <label>Phường *</label>
       <select name="phuong" required>
         <option value="">— chọn —</option>
         {% for w in wards %}
-        <option value="{{ w }}" {% if sel.phuong == w %}selected{% endif %}>P{{ w }}</option>
+        <option value="{{ w }}" {% if sel.phuong == w %}selected{% endif %}>{{ w|wardlabel }}</option>
         {% endfor %}
       </select>
     </div>
@@ -19,6 +27,7 @@
       <label>Diện tích (m²) *</label>
       <input type="number" step="0.1" name="dien_tich" value="{{ sel.dien_tich or '' }}" required>
     </div>
+    {% if loai_bds != 'chung_cu' %}
     <div>
       <label>Loại đường</label>
       <select name="loai_duong">
@@ -28,6 +37,7 @@
         {% endfor %}
       </select>
     </div>
+    {% endif %}
     <div style="display:flex; align-items:end;"><button type="submit">Định giá</button></div>
   </form>
 </div>

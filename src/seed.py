@@ -33,6 +33,16 @@ STREETS = {
 }
 DIRECTIONS = ["Đông", "Tây", "Nam", "Bắc", "Đông Nam", "Tây Bắc", "Tây Nam", "Đông Bắc", None, None]
 
+# Dự án chung cư Bình Thạnh (khớp danh sách parser._PROJECTS)
+PROJECTS = ["Vinhomes Central Park", "Saigon Pearl", "Sunwah Pearl", "The Manor",
+            "City Garden", "Pearl Plaza", "The Ascent", "Opal Saigon"]
+# Giá/m² sàn căn hộ (triệu/m²) theo phân khúc dự án
+PROJECT_BASE = {
+    "Vinhomes Central Park": 130, "Saigon Pearl": 120, "Sunwah Pearl": 125,
+    "The Manor": 95, "City Garden": 115, "Pearl Plaza": 100,
+    "The Ascent": 85, "Opal Saigon": 75,
+}
+
 
 def _price_text(gia_ty: float) -> str:
     """Sinh chuỗi giá đa dạng: '6.5 tỷ', '7 tỷ 200', '850 triệu'."""
@@ -71,35 +81,83 @@ def _make_listing(ward: str, loai: str):
     return " ".join(parts)
 
 
-def generate(n: int):
+def _make_chung_cu(ward: str) -> str:
+    """Tiêu đề rao chung cư mock."""
+    proj = random.choice(PROJECTS)
+    base = PROJECT_BASE[proj] * random.uniform(0.9, 1.15)
+    so_pn = random.choice([1, 2, 2, 2, 3, 3])
+    dt = round({1: 50, 2: 70, 3: 95}[so_pn] * random.uniform(0.9, 1.2))
+    gia = round(base * dt / 1000, 1)  # tỷ
+    tang = random.randint(5, 32)
+    huong = random.choice(DIRECTIONS)
+    parts = [f"Bán căn hộ {proj}", f"P{ward}", f"{so_pn}PN", f"{dt}m2",
+             f"tầng {tang}"]
+    if huong:
+        parts.append(f"hướng {huong}")
+    parts.append(f"giá {_price_text(gia)}")
+    return " ".join(parts)
+
+
+def _make_dat_nen(ward: str) -> str:
+    """Tiêu đề rao đất nền mock (không có số tầng)."""
+    loai = random.choices(["mat_tien", "hem"], weights=[3, 5])[0]
+    base = WARD_BASE[ward] * (1.4 if loai == "mat_tien" else 0.8) * random.uniform(0.85, 1.15)
+    ngang = round(random.uniform(4, 8), 1)
+    dai = round(random.uniform(12, 25), 0)
+    dt = round(ngang * dai)
+    gia = round(base * dt / 1000, 1)
+    if loai == "mat_tien":
+        lead = f"Bán đất mặt tiền {random.choice(STREETS['mat_tien'])}".strip()
+    else:
+        lead = f"Bán đất hẻm {random.choice([4, 5, 6])}m"
+    return " ".join([lead, f"P{ward}", f"{ngang}x{int(dai)}", "thổ cư",
+                     f"giá {_price_text(gia)}"])
+
+
+def _make_row(ward: str, loai_bds: str):
+    if loai_bds == "chung_cu":
+        title = _make_chung_cu(ward)
+    elif loai_bds == "dat_nen":
+        title = _make_dat_nen(ward)
+    else:
+        loai = random.choices(["mat_tien", "hxh", "hem"], weights=[2, 4, 4])[0]
+        title = _make_listing(ward, loai)
+    parsed = parse_listing(title, loai_bds=loai_bds)
+    # ~10% là giá đóng thật (team nhập tay)
+    if random.random() < 0.1:
+        parsed["source"] = "thuc_te"
+        parsed["trang_thai"] = "da_ban"
+        parsed["ghi_chu"] = "Giá đóng thật từ team"
+    else:
+        parsed["source"] = "crawl"
+    return parsed
+
+
+def generate(n: int, loai_list=None):
+    """Sinh n tin mock, chia đều cho các loại trong loai_list (mặc định cả 3)."""
+    loai_list = loai_list or ["nha_rieng", "chung_cu", "dat_nen"]
     rows = []
     wards = list(WARD_BASE)
     for _ in range(n):
-        ward = random.choice(wards)
-        loai = random.choices(["mat_tien", "hxh", "hem"], weights=[2, 4, 4])[0]
-        title = _make_listing(ward, loai)
-        parsed = parse_listing(title)
-        # ~10% là giá đóng thật (team nhập tay)
-        if random.random() < 0.1:
-            parsed["source"] = "thuc_te"
-            parsed["trang_thai"] = "da_ban"
-            parsed["ghi_chu"] = "Giá đóng thật từ team"
-        else:
-            parsed["source"] = "crawl"
-        rows.append(parsed)
+        rows.append(_make_row(random.choice(wards), random.choice(loai_list)))
     return rows
 
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--n", type=int, default=120, help="Số tin mock cần sinh")
+    ap.add_argument("--n", type=int, default=180, help="Số tin mock cần sinh")
     ap.add_argument("--seed", type=int, default=42, help="Seed ngẫu nhiên (cố định để tái lập)")
+    ap.add_argument("--append", action="store_true",
+                    help="Không xóa data cũ (vd: thêm mock chung cư/đất nền vào data nhà thật)")
+    ap.add_argument("--loai", nargs="*", choices=["nha_rieng", "chung_cu", "dat_nen"],
+                    help="Chỉ sinh các loại này (mặc định cả 3)")
     args = ap.parse_args()
 
     random.seed(args.seed)
     db.init_db()
-    db.clear()
-    rows = generate(args.n)
+    if not args.append:
+        db.clear()
+    rows = generate(args.n, loai_list=args.loai)
     n = db.insert_many(rows)
     ok = sum(1 for r in rows if r.get("gia") and r.get("dien_tich"))
     print(f"Đã nạp {len(rows)} tin MOCK (ghi {n} dòng, parse đủ giá+DT: {ok}). Tổng DB: {db.count()}")

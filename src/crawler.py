@@ -20,11 +20,23 @@ LƯU Ý:
 
 import argparse
 import json
+import os
 import random
+import sys
 import time
+sys.path.insert(0, os.path.dirname(__file__))
+from districts import DISTRICTS, PRIORITY
 
-# URL danh sách bán nhà Bình Thạnh (phân trang bằng /p{n})
-BASE_URL = "https://batdongsan.com.vn/ban-nha-rieng-binh-thanh"
+# Tiền tố chuyên mục batdongsan theo loại; URL = .../{prefix}-{slug-quận}, phân trang /p{n}.
+CAT_PREFIX = {
+    "nha_rieng": "ban-nha-rieng",
+    "chung_cu": "ban-can-ho-chung-cu",
+    "dat_nen": "ban-dat",
+}
+
+
+def _base_url(loai_bds: str, district_id: str) -> str:
+    return f"https://batdongsan.com.vn/{CAT_PREFIX[loai_bds]}-{DISTRICTS[district_id]['bds']}"
 
 USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
@@ -43,29 +55,40 @@ CONFIG = {
 }
 
 
-def crawl(pages: int, headless: bool = True, delay=(3, 7)):
+def crawl(pages: int, districts=None, loai_bds_list=None, headless: bool = True, delay=(3, 7)):
+    """Crawl các quận × loại (mặc định bộ quận giá mềm × cả 3 loại)."""
     from playwright.sync_api import sync_playwright
 
+    districts = districts or PRIORITY
+    loai_bds_list = loai_bds_list or list(CAT_PREFIX)
     results = []
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=headless)
-        for page_no in range(1, pages + 1):
-            url = BASE_URL if page_no == 1 else f"{BASE_URL}/p{page_no}"
-            ctx = browser.new_context(user_agent=random.choice(USER_AGENTS))
-            page = ctx.new_page()
-            print(f"[{page_no}/{pages}] {url}")
-            try:
-                page.goto(url, timeout=45000, wait_until="domcontentloaded")
-                page.wait_for_selector(CONFIG["card"], timeout=15000)
-                cards = page.query_selector_all(CONFIG["card"])
-                print(f"   tìm thấy {len(cards)} tin")
-                for c in cards:
-                    results.append(_extract(c))
-            except Exception as e:
-                print(f"   ! lỗi trang {page_no}: {e}")
-            finally:
-                ctx.close()
-            time.sleep(random.uniform(*delay))  # delay tránh bị chặn
+        for dist in districts:
+            for loai in loai_bds_list:
+                base = _base_url(loai, dist)
+                print(f"\n=== {DISTRICTS[dist]['ten']} / {loai} ({base}) ===")
+                for page_no in range(1, pages + 1):
+                    url = base if page_no == 1 else f"{base}/p{page_no}"
+                    ctx = browser.new_context(user_agent=random.choice(USER_AGENTS))
+                    page = ctx.new_page()
+                    print(f"[{dist}/{loai} {page_no}/{pages}] {url}")
+                    try:
+                        page.goto(url, timeout=45000, wait_until="domcontentloaded")
+                        page.wait_for_selector(CONFIG["card"], timeout=15000)
+                        cards = page.query_selector_all(CONFIG["card"])
+                        print(f"   tìm thấy {len(cards)} tin")
+                        for c in cards:
+                            rec = _extract(c)
+                            rec["loai_bds"] = loai
+                            rec["district_id"] = dist
+                            rec["quan"] = DISTRICTS[dist]["ten"]
+                            results.append(rec)
+                    except Exception as e:
+                        print(f"   ! lỗi trang {page_no}: {e}")
+                    finally:
+                        ctx.close()
+                    time.sleep(random.uniform(*delay))  # delay tránh bị chặn
         browser.close()
     return [r for r in results if r.get("title")]
 
@@ -88,17 +111,22 @@ def _extract(card):
         "raw_extra": extra,
         "dia_chi": _text(card, CONFIG["address"]),
         "url": href,
+        "source": "batdongsan",   # tag nguồn để đối chiếu chéo giá
     }
 
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--pages", type=int, default=20, help="Số trang cần crawl (mỗi trang ~20 tin)")
+    ap.add_argument("--pages", type=int, default=20, help="Số trang mỗi chuyên mục (mỗi trang ~20 tin)")
     ap.add_argument("--out", default="data/crawl_raw.json")
+    ap.add_argument("--loai", nargs="*", choices=list(CAT_PREFIX),
+                    help="Chuyên mục cần crawl (mặc định cả 3: nha_rieng chung_cu dat_nen)")
+    ap.add_argument("--district", nargs="*", choices=list(DISTRICTS),
+                    help="Quận cần crawl (mặc định bộ quận giá mềm)")
     ap.add_argument("--show", action="store_true", help="Hiện trình duyệt (debug)")
     args = ap.parse_args()
 
-    rows = crawl(args.pages, headless=not args.show)
+    rows = crawl(args.pages, districts=args.district, loai_bds_list=args.loai, headless=not args.show)
     with open(args.out, "w", encoding="utf-8") as f:
         json.dump(rows, f, ensure_ascii=False, indent=2)
     print(f"\nĐã lưu {len(rows)} tin -> {args.out}")

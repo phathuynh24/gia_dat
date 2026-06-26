@@ -1,25 +1,45 @@
 {% extends "base.html" %}
 {% block content %}
 
+{# Tabs chọn loại BĐS — mỗi loại có thuộc tính & đơn vị giá riêng #}
+<div class="tabs">
+  {% for k, v in loai_bds_label.items() %}
+  <a class="tab {% if loai_bds == k %}active{% endif %}" href="/?loai_bds={{ k }}">
+    {{ v }} <span class="badge">{{ counts.get(k, 0) }}</span>
+  </a>
+  {% endfor %}
+</div>
+
+{# Nhãn đơn vị giá/m² đổi theo loại: sàn (chung cư) vs đất (nhà/đất nền) #}
+{% if loai_bds == 'chung_cu' %}{% set m2_label = 'Giá/m² sàn' %}
+{% elif loai_bds == 'dat_nen' %}{% set m2_label = 'Giá/m² đất' %}
+{% else %}{% set m2_label = 'Giá/m² đất' %}{% endif %}
+
 {% if stats.is_demo %}
 <div class="banner-demo">
-  ⚠️ Đang dùng <b>dữ liệu mẫu (mock)</b> — không phải giá thật. Chạy
-  <code>python src/crawler.py</code> rồi <code>python src/import_data.py</code> để nạp data thật từ batdongsan.
+  ⚠️ <b>{{ loai_bds_label[loai_bds] }}</b>: đang dùng <b>dữ liệu mẫu (mock)</b> — chưa có tin crawl thật.
+  Chạy <code>python src/crawler.py --loai {{ loai_bds }}</code> rồi
+  <code>python src/import_data.py</code> để nạp data thật.
 </div>
 {% endif %}
+
+{% if stats.tong == 0 %}
+<div class="card"><p class="muted">Chưa có tin nào cho loại <b>{{ loai_bds_label[loai_bds] }}</b>.
+  Sinh mock nhanh: <code>python src/seed.py --append --loai {{ loai_bds }}</code></p></div>
+{% else %}
 
 <div class="kpis">
   <div class="kpi">
     <div class="v">{{ stats.gia_median_m2|int }}<span class="u">tr/m²</span></div>
-    <div class="l">Giá/m² trung vị</div>
+    <div class="l">Giá phổ biến nhất<span class="help" data-tip="Mức giá nằm chính giữa thị trường (một nửa số nhà cao hơn, một nửa thấp hơn). Chính xác hơn 'giá trung bình' vì không bị lệch bởi vài căn quá đắt hoặc quá rẻ.">?</span></div>
   </div>
   <div class="kpi">
-    <div class="v">{{ total }}</div>
-    <div class="l">Tổng tin · {{ stats.n_phuong }} phường</div>
+    <div class="v">{{ stats.tong }}</div>
+    <div class="l">Tin {{ loai_bds_label[loai_bds] }} · {{ stats.n_phuong }} phường</div>
   </div>
   <div class="kpi">
     <div class="v">{{ stats.gia_p25 }}–{{ stats.gia_p75 }}<span class="u">tỷ</span></div>
-    <div class="l">Khoảng giá phổ biến (P25–P75)</div>
+    <div class="l">Khoảng giá bình dân – cao cấp<span class="help" data-tip="50% số nhà đất đang rao nằm trong tầm giá này. Giúp bạn biết ngân sách của mình thuộc nhóm số đông hay thiểu số (P25–P75).">?</span></div>
   </div>
   <div class="kpi">
     <div class="v">{{ stats.dt_median|int }}<span class="u">m²</span></div>
@@ -27,29 +47,36 @@
   </div>
 </div>
 
-<div class="grid2">
+<div class="{% if has_ward_chart %}grid2{% endif %}">
+  {% if has_ward_chart %}
   <div class="card">
-    <h2>Giá/m² trung bình theo phường <span class="muted">(triệu/m² · P = Phường · phường có ≥5 tin)</span></h2>
+    <h2>{{ m2_label }} trung bình theo phường <span class="muted">(triệu/m² · phường có ≥5 tin)</span></h2>
     <canvas id="barChart" height="220"></canvas>
   </div>
+  {% endif %}
   <div class="card">
-    <h2>Diện tích vs Giá <span class="muted">(phát hiện outlier)</span></h2>
+    <h2>Diện tích vs Giá <span class="muted">(soi tin giá ảo / bất thường)</span><span class="help" data-tip="Mỗi chấm là 1 tin. Chấm lệch hẳn khỏi đám đông là tin giá ảo/bất thường: rẻ bất thường (tin giả, nhập thiếu số 0) hoặc quá đắt (ngáo giá).">?</span></h2>
     <canvas id="scatterChart" height="220"></canvas>
   </div>
 </div>
+{% if not has_ward_chart %}
+<p class="muted" style="margin:-8px 0 20px;">ℹ️ Quận này chưa đủ dữ liệu theo phường (mỗi phường &lt;5 tin) nên ẩn biểu đồ giá theo phường.</p>
+{% endif %}
 
 <div class="card">
   <h2>Bộ lọc</h2>
   <form method="get" class="filters">
+    <input type="hidden" name="loai_bds" value="{{ loai_bds }}">
     <div>
       <label>Phường</label>
       <select name="phuong">
         <option value="">Tất cả</option>
         {% for w in wards %}
-        <option value="{{ w }}" {% if filters.phuong == w %}selected{% endif %}>P{{ w }}</option>
+        <option value="{{ w }}" {% if filters.phuong == w %}selected{% endif %}>{{ w|wardlabel }}</option>
         {% endfor %}
       </select>
     </div>
+    {% if loai_bds != 'chung_cu' %}
     <div>
       <label>Loại đường</label>
       <select name="loai_duong">
@@ -59,42 +86,73 @@
         {% endfor %}
       </select>
     </div>
+    {% endif %}
     <div><label>Giá từ (tỷ)</label><input type="number" step="0.1" name="gia_min" value="{{ filters.gia_min or '' }}"></div>
     <div><label>Giá đến (tỷ)</label><input type="number" step="0.1" name="gia_max" value="{{ filters.gia_max or '' }}"></div>
     <div><label>DT từ (m²)</label><input type="number" name="dt_min" value="{{ filters.dt_min or '' }}"></div>
     <div style="display:flex; gap:8px; align-items:end;">
       <button type="submit">Lọc</button>
-      <a class="btn-clear" href="/">Xóa</a>
+      <a class="btn-clear" href="/?loai_bds={{ loai_bds }}">Xóa</a>
     </div>
   </form>
 </div>
 
 <div class="card">
-  <h2>Danh sách tin ({{ listings|length }})</h2>
+  <h2>Danh sách tin ({{ listings|length }})
+    <span class="muted">· Nguồn:
+    {% for s, c in source_counts.items() %}{{ source_label.get(s, s) }} {{ c }}{% if not loop.last %} · {% endif %}{% endfor %}</span>
+  </h2>
   <div style="overflow-x:auto;">
   <table>
     <thead>
       <tr>
-        <th>Tiêu đề</th><th>Phường</th><th>Loại</th><th>DT (m²)</th>
-        <th>Tầng</th><th>Giá (tỷ)</th><th>Giá/m²</th><th>Nguồn</th>
+        <th>Tiêu đề</th><th>Phường</th>
+        {% if loai_bds == 'chung_cu' %}
+          <th>Dự án</th><th>PN</th><th>Tầng</th>
+        {% elif loai_bds == 'dat_nen' %}
+          <th>Loại</th><th>KT (ngang×dài)</th>
+        {% else %}
+          <th>Loại</th><th>Tầng</th>
+        {% endif %}
+        <th>DT (m²)</th><th>Giá (tỷ)</th><th>Giá/m²</th><th>Nguồn</th>
       </tr>
     </thead>
     <tbody>
       {% for l in listings %}
       <tr>
         <td>{{ l.tieu_de }}</td>
-        <td>{% if l.phuong %}P{{ l.phuong }}{% else %}—{% endif %}</td>
-        <td>
-          {% if l.loai_duong == 'mat_tien' %}<span class="tag tag-mt">Mặt tiền</span>
-          {% elif l.loai_duong == 'hxh' %}<span class="tag tag-hxh">HXH</span>
-          {% elif l.loai_duong == 'hem' %}<span class="tag tag-hem">Hẻm</span>
-          {% else %}—{% endif %}
-        </td>
+        <td>{{ l.phuong|wardlabel }}</td>
+        {% if loai_bds == 'chung_cu' %}
+          <td>{{ l.du_an or '—' }}</td>
+          <td>{{ l.so_pn or '—' }}</td>
+          <td>{{ l.so_tang or '—' }}</td>
+        {% elif loai_bds == 'dat_nen' %}
+          <td>
+            {% if l.loai_duong == 'mat_tien' %}<span class="tag tag-mt">Mặt tiền</span>
+            {% elif l.loai_duong == 'hxh' %}<span class="tag tag-hxh">HXH</span>
+            {% elif l.loai_duong == 'hem' %}<span class="tag tag-hem">Hẻm</span>
+            {% else %}—{% endif %}
+          </td>
+          <td>{% if l.ngang and l.dai %}{{ l.ngang }}×{{ l.dai }}{% else %}—{% endif %}</td>
+        {% else %}
+          <td>
+            {% if l.loai_duong == 'mat_tien' %}<span class="tag tag-mt">Mặt tiền</span>
+            {% elif l.loai_duong == 'hxh' %}<span class="tag tag-hxh">HXH</span>
+            {% elif l.loai_duong == 'hem' %}<span class="tag tag-hem">Hẻm</span>
+            {% else %}—{% endif %}
+          </td>
+          <td>{{ l.so_tang or '—' }}</td>
+        {% endif %}
         <td>{{ l.dien_tich or '—' }}</td>
-        <td>{{ l.so_tang or '—' }}</td>
         <td>{{ l.gia or '—' }}</td>
         <td>{{ l.gia_per_m2 or '—' }}</td>
-        <td>{% if l.source == 'thuc_te' %}<span class="tag tag-real">Giá thật</span>{% else %}Rao{% endif %}</td>
+        <td>
+          {% if l.source == 'thuc_te' %}<span class="tag tag-real">Giá thật</span>
+          {% elif l.source == 'chotot' %}<span class="tag tag-cc">Chợ Tốt</span>
+          {% elif l.source == 'batdongsan' %}<span class="tag tag-mt">Batdongsan</span>
+          {% elif l.source == 'mogi' %}<span class="tag tag-dat">Mogi</span>
+          {% else %}{{ source_label.get(l.source, l.source) }}{% endif %}
+        </td>
       </tr>
       {% endfor %}
     </tbody>
@@ -105,15 +163,16 @@
 <script>
   const barData = {{ bar_data|safe }};
   const scatterRaw = {{ scatter_data|safe }};
+  const accent = '{{ "#7c3aed" if loai_bds == "chung_cu" else "#b45309" if loai_bds == "dat_nen" else "#1f6feb" }}';
 
-  new Chart(document.getElementById('barChart'), {
+  if (document.getElementById('barChart')) new Chart(document.getElementById('barChart'), {
     type: 'bar',
     data: {
-      labels: barData.map(d => 'P' + d.phuong),
+      labels: barData.map(d => isNaN(d.phuong) ? d.phuong : 'P' + d.phuong),
       datasets: [{
         label: 'Giá/m² TB (triệu)',
         data: barData.map(d => d.avg_gia_m2),
-        backgroundColor: '#1f6feb',
+        backgroundColor: accent,
       }]
     },
     options: {
@@ -134,7 +193,7 @@
     data: {
       datasets: [{
         data: scatterRaw.map(d => ({ x: d.dien_tich, y: d.gia, t: d.tieu_de })),
-        pointBackgroundColor: scatterRaw.map(d => colorByType[d.loai_duong] || '#94a3b8'),
+        pointBackgroundColor: scatterRaw.map(d => colorByType[d.loai_duong] || accent),
         pointRadius: 5,
       }]
     },
@@ -150,4 +209,5 @@
     }
   });
 </script>
+{% endif %}
 {% endblock %}

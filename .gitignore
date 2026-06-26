@@ -1,6 +1,6 @@
-# Data & DB — đưa lên repo để mai clone chạy ngay (theo quyết định team).
-# File crawl thử nghiệm thì bỏ qua.
-data/crawl_test.json
+# Data & DB — chỉ commit listings.db (đủ chạy/deploy). File crawl thô không cần.
+data/crawl_*.json
+data/*_log.txt
 
 # Secrets — KHÔNG BAO GIỜ commit
 .env
