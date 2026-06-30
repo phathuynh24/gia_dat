@@ -66,11 +66,11 @@ LOAI_DUONG_LABEL = {
 
 # Loại bất động sản — mỗi loại có thuộc tính + đơn vị giá khác nhau (xem dashboard tabs)
 LOAI_BDS_LABEL = {
-    "nha_rieng": "🏠 Nhà riêng",
     "chung_cu": "🏢 Chung cư",
+    "nha_rieng": "🏠 Nhà riêng",
     "dat_nen": "🟫 Đất nền",
 }
-LOAI_BDS_DEFAULT = "nha_rieng"
+LOAI_BDS_DEFAULT = "chung_cu"
 
 # Nhãn nguồn dữ liệu (để đối chiếu chéo giá giữa các site)
 SOURCE_LABEL = {

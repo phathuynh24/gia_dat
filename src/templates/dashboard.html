@@ -1,4 +1,60 @@
 {% extends "base.html" %}
+{% block extra_head %}
+<style>
+  .map-btn { background: #f0f6ff; color: var(--accent); border: 1px solid #cfe0ff;
+             border-radius: 7px; padding: 4px 10px; font-size: 12px; font-weight: 600;
+             cursor: pointer; white-space: nowrap; }
+  .map-btn:hover { background: #e0edff; }
+  .map-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .loan-btn { display: inline-block; background: #f0fdf4; color: var(--accent2);
+              border: 1px solid #bbf7d0; border-radius: 7px; padding: 4px 10px;
+              font-size: 12px; font-weight: 600; text-decoration: none; white-space: nowrap; }
+  .loan-btn:hover { background: #dcfce7; }
+  .act-cell { white-space: nowrap; }
+  .act-cell > * { margin: 2px 0; }
+  .map-row > td { background: #f7f9fc !important; padding: 12px 14px; }
+  .map-embed iframe { width: 100%; height: 320px; border: 0; border-radius: 10px;
+                      box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+  .map-loading { height: 60px; display: flex; align-items: center; gap: 8px;
+                 color: var(--muted); font-size: 13px; }
+  .map-loading::before { content: ""; width: 14px; height: 14px; border: 2px solid var(--line);
+                 border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .map-ext { display: inline-block; margin-top: 8px; font-size: 12px; font-weight: 600;
+             color: var(--accent); text-decoration: none; }
+  .map-ext:hover { text-decoration: underline; }
+  .map-addr { font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+  /* Mini-card tính vay nhanh ngay đầu Tổng quan */
+  .quickloan { display: flex; flex-wrap: wrap; align-items: end; gap: 14px; }
+  .quickloan .f { flex: 0 0 180px; }
+  .quickloan .hint { color: var(--muted); font-size: 13px; flex: 1 1 220px; }
+  .loan-cta { background: var(--accent2); color: #fff; border: 0; border-radius: 8px;
+              padding: 9px 16px; font-size: 14px; font-weight: 600; cursor: pointer;
+              text-decoration: none; white-space: nowrap; }
+  .loan-cta:hover { filter: brightness(.95); }
+  /* Section gập (Bản đồ / Xu hướng / So nguồn) */
+  details.sect { background: var(--card); border: 1px solid var(--line);
+                 border-radius: 12px; margin-bottom: 20px; overflow: hidden; }
+  details.sect > summary { list-style: none; cursor: pointer; padding: 16px 20px;
+                 font-size: 15px; font-weight: 700; display: flex; align-items: center;
+                 gap: 10px; user-select: none; }
+  details.sect > summary::-webkit-details-marker { display: none; }
+  details.sect > summary::before { content: "▸"; color: var(--muted); font-size: 13px;
+                 transition: transform .15s; }
+  details.sect[open] > summary::before { transform: rotate(90deg); }
+  details.sect > summary .sub { font-weight: 400; font-size: 13px; color: var(--muted); }
+  details.sect .body { padding: 0 20px 18px; }
+  /* Teaser săn hàng ngộp */
+  .teaser { display: flex; align-items: center; gap: 14px; background: #fff7ed;
+            border: 1px solid #fed7aa; border-radius: 12px; padding: 14px 18px;
+            margin-bottom: 20px; }
+  .teaser .ic { font-size: 22px; }
+  .teaser .tx { flex: 1; font-size: 14px; color: #9a3412; }
+  .teaser a { background: var(--warn); color: #fff; border-radius: 8px; padding: 8px 14px;
+              font-size: 13px; font-weight: 600; text-decoration: none; white-space: nowrap; }
+  .teaser a:hover { filter: brightness(.96); }
+</style>
+{% endblock %}
 {% block content %}
 
 {# Tabs chọn loại BĐS — mỗi loại có thuộc tính & đơn vị giá riêng #}
@@ -47,6 +103,22 @@
   </div>
 </div>
 
+{# Tính vay nhanh: nhập giá → nhảy sang trang vay vốn với giá điền sẵn #}
+<div class="card">
+  <h2>💰 Tính vay nhanh</h2>
+  <div class="quickloan">
+    <div class="f">
+      <label>Giá nhà dự kiến (tỷ)</label>
+      <input type="number" step="0.1" id="quickGia"
+             placeholder="vd: {{ stats.gia_p50 if stats.gia_p50 else 5 }}">
+    </div>
+    <a class="loan-cta" href="/vay-von"
+       onclick="var g=document.getElementById('quickGia').value; if(g) this.href='/vay-von?gia='+g;">
+       Xem phương án vay →</a>
+    <span class="hint">Ước tính vốn tự có, trả góp hàng tháng và thẩm định khả năng vay.</span>
+  </div>
+</div>
+
 <div class="{% if has_ward_chart %}grid2{% endif %}">
   {% if has_ward_chart %}
   <div class="card">
@@ -62,6 +134,119 @@
 {% if not has_ward_chart %}
 <p class="muted" style="margin:-8px 0 20px;">ℹ️ Quận này chưa đủ dữ liệu theo phường (mỗi phường &lt;5 tin) nên ẩn biểu đồ giá theo phường.</p>
 {% endif %}
+
+{# Teaser cầu nối sang "Săn hàng ngộp" — chỉ 1 số + 1 link, không bê cả bảng vào #}
+{% if n_clusters > 0 %}
+<div class="teaser">
+  <span class="ic">🔥</span>
+  <span class="tx">Phát hiện <b>{{ n_clusters }} cụm tin</b> nghi cùng một BĐS do nhiều môi giới rao —
+    có thể lọc ra giá sàn để đàm phán.</span>
+  <a href="/trung-lap?loai_bds={{ loai_bds }}">Săn hàng ngộp →</a>
+</div>
+{% endif %}
+
+{# ===== Bản đồ giá (gộp từ /heatmap) — lazy-init chart khi mở ===== #}
+<details class="sect" id="ban-do" data-chart="heat">
+  <summary>🗺️ Bản đồ giá theo phường
+    <span class="sub">· {{ n_heat }} phường · màu đỏ = giá/m² cao</span></summary>
+  <div class="body">
+    {% if n_heat == 0 %}
+    <p class="muted">Chưa đủ dữ liệu (cần ≥3 tin/phường và có toạ độ).</p>
+    {% else %}
+    <p class="muted">Mỗi chấm là 1 phường đặt theo vị trí địa lý (xấp xỉ tâm phường).
+      <b>Màu càng đỏ = giá/m² càng cao</b>, chấm càng lớn = càng nhiều tin.</p>
+    <canvas id="heatChart" height="150"></canvas>
+    <div id="heatLegend" class="muted" style="margin-top:10px;"></div>
+    {% endif %}
+  </div>
+</details>
+
+{# ===== Xu hướng giá (gộp từ /xu-huong) ===== #}
+<details class="sect" id="xu-huong" data-chart="trend">
+  <summary>📈 Xu hướng giá theo thời gian
+    {% if n_dates >= 2 and trend_pct is not none %}
+      <span class="sub">· {% if trend_pct >= 0 %}+{% endif %}{{ trend_pct }}% từ mốc đầu</span>
+    {% endif %}</summary>
+  <div class="body">
+    {% if has_demo %}
+    <div class="banner-demo">
+      ⚠️ Đang hiển thị <b>mốc lịch sử MINH HOẠ (demo)</b> — không phải biến động thật.
+      Chạy <code>python src/snapshot.py</code> định kỳ để tích luỹ lịch sử thật,
+      rồi <code>python src/snapshot.py --clear-demo</code> để xoá demo.
+    </div>
+    {% endif %}
+    {% if n_dates < 2 %}
+    <p class="muted">Cần ít nhất <b>2 mốc thời gian</b> để vẽ xu hướng (hiện có {{ n_dates }}).
+      Tạo mốc minh hoạ: <code>python src/snapshot.py --demo --months 6</code>.</p>
+    {% else %}
+    <p class="muted">
+      Biến động giá tổng từ mốc đầu → mốc cuối:
+      {% if trend_pct >= 0 %}<b style="color:#dc2626;">+{{ trend_pct }}%</b>
+        {% if trend_pct >= 10 %}<span class="tag" style="background:#fee2e2;color:#dc2626;">tăng nóng — rủi ro đu đỉnh</span>{% endif %}
+      {% else %}<b style="color:#16a34a;">{{ trend_pct }}%</b>{% endif %}
+    </p>
+    <canvas id="trendChart" height="110"></canvas>
+    {% endif %}
+  </div>
+</details>
+
+{# ===== So sánh nguồn (gộp từ /so-nguon) ===== #}
+{% set order = ['batdongsan', 'chotot', 'mogi'] %}
+<details class="sect" id="so-nguon">
+  <summary>🔀 So sánh giá giữa các nguồn
+    <span class="sub">· đối chiếu chéo để tránh mua theo giá kê cao</span></summary>
+  <div class="body">
+    {% if not src_overall %}
+    <p class="muted">Chưa có dữ liệu cho loại/quận này.</p>
+    {% else %}
+    {% set meds = [] %}{% for s in order if s in src_overall %}{% set _ = meds.append(src_overall[s].median_m2) %}{% endfor %}
+    <div class="kpis" style="grid-template-columns: repeat({{ order|select('in', src_overall)|list|length }}, 1fr); margin-bottom:14px;">
+      {% for s in order if s in src_overall %}
+      <div class="kpi">
+        <div class="v">{{ src_overall[s].median_m2|int }}<span class="u">tr/m²</span>
+          {% if meds and src_overall[s].median_m2 == meds|max and meds|length > 1 %}
+            <span class="tag" style="background:#fee2e2;color:#dc2626;font-size:11px;">cao nhất</span>
+          {% endif %}
+        </div>
+        <div class="l">{{ source_label.get(s, s) }} · {{ src_overall[s].n }} tin</div>
+      </div>
+      {% endfor %}
+    </div>
+    {% if meds|length > 1 %}
+    <p class="muted">Chênh lệch giữa nguồn cao nhất và thấp nhất:
+       <b>{{ ((meds|max - meds|min) / meds|min * 100)|round|int }}%</b>
+       → tham khảo nhiều nguồn để tránh mua theo giá kê cao.</p>
+    {% endif %}
+    {% endif %}
+
+    {% if src_by_ward %}
+    <h2 style="margin-top:16px;">Chi tiết theo phường <span class="muted">(Batdongsan vs Chợ Tốt · ≥2 tin mỗi nguồn)</span></h2>
+    <div style="overflow-x:auto;">
+    <table>
+      <thead><tr>
+        <th>Phường</th><th>Batdongsan (tr/m²)</th><th>Chợ Tốt (tr/m²)</th><th>Chênh lệch</th>
+      </tr></thead>
+      <tbody>
+        {% for r in src_by_ward %}
+        <tr>
+          <td>{{ r.phuong|wardlabel }}</td>
+          <td>{% if 'batdongsan' in r.src %}{{ r.src.batdongsan.median_m2 }} <span class="muted">({{ r.src.batdongsan.n }})</span>{% else %}—{% endif %}</td>
+          <td>{% if 'chotot' in r.src %}{{ r.src.chotot.median_m2 }} <span class="muted">({{ r.src.chotot.n }})</span>{% else %}—{% endif %}</td>
+          <td>
+            {% if 'batdongsan' in r.src and 'chotot' in r.src %}
+              <span class="tag {% if r.chenh_pct >= 15 %}tag-real{% else %}tag-hxh{% endif %}">{{ r.chenh_pct }}%</span>
+            {% else %}<span class="muted">thiếu nguồn</span>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    <p class="muted" style="margin-top:10px;">ℹ️ mogi.vn chỉ ghi địa chỉ tới mức quận nên không có ở bảng theo phường (đã tính ở phần toàn quận).
+       Chênh lệch ≥15% (nhãn cam) = 2 nguồn lệch nhiều — nên xem kỹ tin thực tế.</p>
+    {% endif %}
+  </div>
+</details>
 
 <div class="card">
   <h2>Bộ lọc</h2>
@@ -114,13 +299,13 @@
         {% else %}
           <th>Loại</th><th>Tầng</th>
         {% endif %}
-        <th>DT (m²)</th><th>Giá (tỷ)</th><th>Giá/m²</th><th>Nguồn</th>
+        <th>DT (m²)</th><th>Giá (tỷ)</th><th>Giá/m²</th><th>Nguồn</th><th>Thao tác</th>
       </tr>
     </thead>
     <tbody>
       {% for l in listings %}
       <tr>
-        <td>{{ l.tieu_de }}</td>
+        <td>{{ l.tieu_de|decodehtml }}</td>
         <td>{{ l.phuong|wardlabel }}</td>
         {% if loai_bds == 'chung_cu' %}
           <td>{{ l.du_an or '—' }}</td>
@@ -152,6 +337,22 @@
           {% elif l.source == 'batdongsan' %}<span class="tag tag-mt">Batdongsan</span>
           {% elif l.source == 'mogi' %}<span class="tag tag-dat">Mogi</span>
           {% else %}{{ source_label.get(l.source, l.source) }}{% endif %}
+        </td>
+        <td class="act-cell">
+          <button type="button" class="map-btn"
+                  onclick="toggleMap(this, '{{ l|mapquery|urlencode }}')">📍 Bản đồ</button>
+          {% if l.gia %}
+          <a class="loan-btn" href="/vay-von?gia={{ l.gia }}"
+             title="Tính vay mua căn này (giá {{ l.gia }} tỷ)">💰 Tính vay</a>
+          {% endif %}
+        </td>
+      </tr>
+      <tr class="map-row" style="display:none;">
+        <td colspan="12">
+          <div class="map-addr">📍 {{ l|mapquery }}</div>
+          <div class="map-embed"></div>
+          <a class="map-ext" target="_blank"
+             href="https://www.google.com/maps/search/?api=1&query={{ l|mapquery|urlencode }}">Mở trong Google Maps ↗</a>
         </td>
       </tr>
       {% endfor %}
@@ -208,6 +409,108 @@
       }
     }
   });
+
+  // ===== Chart cho section gập: chỉ vẽ KHI mở (canvas ẩn → Chart.js đo sai kích thước) =====
+  const heatPts = {{ heat_points|safe }};
+  const trendData = {{ trend|safe }};
+
+  function initHeatChart() {
+    const el = document.getElementById('heatChart');
+    if (!el || el.dataset.done) return;
+    el.dataset.done = '1';
+    const vals = heatPts.map(p => p.median_m2);
+    const lo = Math.min(...vals), hi = Math.max(...vals);
+    const nMax = Math.max(...heatPts.map(p => p.n));
+    const heatColor = v => {
+      const t = hi > lo ? (v - lo) / (hi - lo) : 0.5;
+      return `rgba(${Math.round(40+t*200)},${Math.round(150-t*110)},${Math.round(220-t*180)},0.75)`;
+    };
+    new Chart(el, {
+      type: 'bubble',
+      data: { datasets: [{
+        data: heatPts.map(p => ({ x: p.lng, y: p.lat, r: 8 + (p.n/nMax)*22,
+                                  ph: p.phuong, m2: p.median_m2, n: p.n })),
+        backgroundColor: heatPts.map(p => heatColor(p.median_m2)),
+        borderColor: 'rgba(0,0,0,.15)', borderWidth: 1,
+      }]},
+      options: { plugins: { legend: { display: false }, tooltip: { callbacks: {
+        title: i => 'Phường ' + i[0].raw.ph,
+        label: c => `${c.raw.m2} tr/m² · ${c.raw.n} tin` } } },
+        scales: { x: { title: { display: true, text: 'Kinh độ (Đông →)' }, ticks: { display: false } },
+                  y: { title: { display: true, text: 'Vĩ độ (↑ Bắc)' }, ticks: { display: false } } } }
+    });
+    const lg = document.getElementById('heatLegend');
+    if (lg) lg.innerHTML = `Thang giá: <b style="color:#2896dc">${lo} tr/m²</b> (thấp) → ` +
+      `<b style="color:#e84628">${hi} tr/m²</b> (cao) · toạ độ tâm phường là xấp xỉ.`;
+  }
+
+  function initTrendChart() {
+    const el = document.getElementById('trendChart');
+    if (!el || el.dataset.done) return;
+    el.dataset.done = '1';
+    const palette = ['#1f6feb','#16a34a','#d97706','#7c3aed','#dc2626','#0891b2','#db2777','#65a30d'];
+    const wardNames = Object.keys(trendData.wards)
+      .sort((a,b)=> trendData.wards[b].filter(x=>x!=null).length - trendData.wards[a].filter(x=>x!=null).length)
+      .slice(0,6);
+    const datasets = [{ label: 'Trung vị toàn quận', data: trendData.overall,
+      borderColor: '#111', borderWidth: 3, tension: .2, pointRadius: 3 }];
+    wardNames.forEach((ph, i) => datasets.push({ label: isNaN(ph) ? ph : 'P' + ph,
+      data: trendData.wards[ph], borderColor: palette[i % palette.length],
+      borderWidth: 1.5, tension: .2, pointRadius: 2, borderDash: [4,3] }));
+    new Chart(el, { type: 'line', data: { labels: trendData.dates, datasets },
+      options: { plugins: { legend: { position: 'bottom' } },
+        interaction: { mode: 'index', intersect: false },
+        scales: { y: { title: { display: true, text: 'Giá/m² (triệu)' } } } } });
+  }
+
+  // Vẽ khi user mở section; nếu vào trang qua anchor (#ban-do) thì mở sẵn + vẽ.
+  document.querySelectorAll('details.sect[data-chart]').forEach(d => {
+    const draw = () => { if (d.dataset.chart === 'heat') initHeatChart();
+                         else if (d.dataset.chart === 'trend') initTrendChart(); };
+    d.addEventListener('toggle', () => { if (d.open) draw(); });
+    if (location.hash && d.id === location.hash.slice(1)) { d.open = true; draw(); }
+  });
 </script>
 {% endif %}
+
+<script>
+  // Map từng record: ẩn mặc định, bấm "📍 Bản đồ" mới nạp (lazy-load).
+  // Dữ liệu rao chỉ có tới phường/đường → Google embed q=địa-chỉ chỉ CANH KHU, không có ghim.
+  // Nên geocode địa chỉ → toạ độ (Nominatim/OSM, free, không cần key) rồi đưa Google q=lat,lng
+  // → LUÔN có ghim. Nếu geocode lỗi/bị chặn thì fallback về embed canh khu như cũ.
+  async function toggleMap(btn, q) {
+    const row = btn.closest('tr');
+    const mapRow = row.nextElementSibling;
+    if (!mapRow || !mapRow.classList.contains('map-row')) return;
+
+    const isOpen = mapRow.style.display !== 'none';
+    if (isOpen) {
+      mapRow.style.display = 'none';
+      btn.classList.remove('active');
+      return;
+    }
+    mapRow.style.display = '';
+    btn.classList.add('active');
+
+    const box = mapRow.querySelector('.map-embed');
+    if (box.dataset.loaded) return;
+    box.dataset.loaded = '1';
+    box.innerHTML = '<div class="map-loading">Đang tìm vị trí trên bản đồ…</div>';
+
+    let src = null;
+    try {
+      const res = await fetch(
+        'https://nominatim.openstreetmap.org/search?format=json&limit=1&q=' + q,
+        { headers: { 'Accept-Language': 'vi' } });
+      const hits = await res.json();
+      if (hits && hits.length) {
+        src = 'https://maps.google.com/maps?q=' + hits[0].lat + ',' + hits[0].lon
+            + '&z=17&output=embed';
+      }
+    } catch (e) { /* mạng chặn Nominatim → dùng fallback bên dưới */ }
+
+    if (!src) src = 'https://maps.google.com/maps?q=' + q + '&z=16&output=embed';
+    box.innerHTML = '<iframe loading="lazy" allowfullscreen src="' + src + '"></iframe>';
+  }
+</script>
 {% endblock %}

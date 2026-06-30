@@ -8,7 +8,7 @@ Trang:
   /dinh-gia    Tool định giá nhanh (comp method, P25/P50/P75)
 """
 
-import sys, os, json
+import sys, os, json, re, html
 sys.path.insert(0, os.path.dirname(__file__))
 
 # Windows console mặc định cp1252 -> ép UTF-8 để log tiếng Việt không lỗi
@@ -17,7 +17,7 @@ try:
 except Exception:
     pass
 
-from flask import Flask, render_template, request, session
+from flask import Flask, render_template, request, session, redirect, url_for
 import db
 from db import LOAI_DUONG_LABEL, LOAI_BDS_LABEL, LOAI_BDS_DEFAULT, SOURCE_LABEL
 from districts import DISTRICTS, LABEL as DISTRICT_LABEL
@@ -33,9 +33,13 @@ DISTRICT_DEFAULT = "binh_thanh"
 
 
 def _loai_bds():
-    """Tab loại BĐS đang chọn (mặc định nhà riêng). Bỏ qua giá trị lạ."""
-    v = request.args.get("loai_bds") or LOAI_BDS_DEFAULT
-    return v if v in LOAI_BDS_LABEL else LOAI_BDS_DEFAULT
+    """Loại BĐS đang chọn — sticky qua session để ĐỒNG BỘ giữa mọi tab.
+    Chọn ở tab nào thì các tab khác giữ nguyên loại đó. Mặc định chung cư."""
+    v = request.args.get("loai_bds")
+    if v and v in LOAI_BDS_LABEL:
+        session["loai_bds"] = v
+        return v
+    return session.get("loai_bds", LOAI_BDS_DEFAULT)
 
 
 def _district():
@@ -54,6 +58,118 @@ def _wardlabel(w):
     if w is None or w == "":
         return "—"
     return f"P{w}" if str(w).isdigit() else str(w)
+
+
+def _street_from_url(url):
+    """batdongsan nhúng tên đường trong slug: '...-duong-<đường>-phuong-<n>-...'."""
+    if not url:
+        return None
+    m = re.search(r"-(?:duong|pho)-([a-z0-9-]+?)-phuong-", url)
+    if m:
+        return m.group(1).replace("-", " ").strip() or None
+    return None
+
+
+def _project_from_url(url):
+    """Tên dự án chung cư nằm sau '-phuong-<n>-' trong slug batdongsan."""
+    if not url:
+        return None
+    m = re.search(r"-phuong-\d+[a-z]?-([a-z][a-z0-9-]+?)/", url)
+    if m:
+        proj = m.group(1).replace("-", " ").strip()
+        # bỏ hậu tố mã loại tin (vd '66') — chỉ nhận khi có chữ cái
+        return proj if re.search(r"[a-z]", proj) and len(proj) > 3 else None
+    return None
+
+
+def _project_from_title(title):
+    """Tên dự án chung cư trong tiêu đề mogi/chotot: thường sau 'tại'/'dự án'
+    (vd 'căn hộ 2PN tại The Infiniti – Riviera Point' → 'The Infiniti')."""
+    if not title:
+        return None
+    m = re.search(r"tại\s+", title, re.IGNORECASE) \
+        or re.search(r"dự\s*án\s+", title, re.IGNORECASE)
+    if not m:
+        return None
+    out = []
+    for w in re.split(r"\s+", title[m.end():]):
+        wc = w.strip(".,-/()–")
+        if not wc:
+            if out:
+                break
+            continue
+        if wc[0].isdigit():
+            break
+        if wc[0].isupper():
+            out.append(wc)
+            if len(out) >= 3:
+                break
+        elif out:
+            break
+    name = " ".join(out).strip()
+    return name if len(name) >= 3 else None
+
+
+def _street_from_title(title):
+    """Trích tên đường từ tiêu đề chotot/mogi: sau 'mặt tiền'/'MT'/'đường' → các từ Hoa liền nhau.
+    Dừng khi gặp số, dấu phẩy, hoặc từ viết thường (vd 'Phan Văn Hân 40.3m' → 'Phan Văn Hân')."""
+    if not title:
+        return None
+    # 'đường' đứng ngay trước tên đường nên ưu tiên; nếu không có mới tới 'mặt tiền'/'MT'
+    # (tránh dính số tầng kiểu 'Mặt Tiền 4Lầu Đường ...').
+    m = re.search(r"đường\s+", title, re.IGNORECASE) \
+        or re.search(r"(?:mặt\s*tiền|\bmt\b)\s+", title, re.IGNORECASE)
+    if not m:
+        return None
+    rest = re.sub(r"^(?:đường)\s+", "", title[m.end():], flags=re.IGNORECASE)
+    out = []
+    for w in re.split(r"[\s,]+", rest):
+        wc = w.strip(".,-/")
+        if not wc or any(c.isdigit() for c in wc):
+            break
+        if wc[0].isupper():           # .isupper() xử lý đúng chữ Hoa tiếng Việt (Đ, À-Ỹ)
+            out.append(wc)
+            if len(out) >= 4:
+                break
+        else:
+            break
+    name = " ".join(out).strip()
+    return name if len(name) >= 3 else None
+
+
+@app.template_filter("decodehtml")
+def _decodehtml(s):
+    """Giải mã ký tự HTML trong tiêu đề (mogi trả '&#127882;', '&#8211;' …)."""
+    return html.unescape(s) if s else s
+
+
+@app.template_filter("mapquery")
+def _mapquery(l):
+    """Dựng chuỗi địa chỉ CỤ THỂ để Google Maps thả ghim đúng vị trí (không cần API key/toạ độ).
+
+    Dữ liệu rao chỉ có tới phường → query mức phường chỉ canh giữa khu, KHÔNG có ghim.
+    Nên trích thêm tên ĐƯỜNG (URL batdongsan / tiêu đề chotot) hoặc DỰ ÁN (chung cư) để
+    Google định vị tới điểm cụ thể. Luôn gắn đuôi quận + TP để không nhầm tỉnh khác.
+    """
+    quan = (l.get("quan") or "Bình Thạnh").strip()
+    phuong = l.get("phuong")
+    title = html.unescape(l.get("tieu_de") or "")  # mogi/chotot có ký tự HTML (&#127882; …)
+
+    place = None  # phần cụ thể nhất: dự án (chung cư) hoặc tên đường
+    if l.get("loai_bds") == "chung_cu":
+        place = (l.get("du_an") or "").strip() or _project_from_url(l.get("url")) \
+            or _project_from_title(title)
+    if not place:
+        place = _street_from_url(l.get("url")) or _street_from_title(title)
+
+    parts = []
+    if place:
+        parts.append(place)
+    if phuong:
+        parts.append(f"Phường {phuong}" if str(phuong).isdigit() else str(phuong))
+    parts.append(quan)
+    parts.append("TP Hồ Chí Minh")
+    return ", ".join(parts)
 
 
 @app.context_processor
@@ -88,6 +204,15 @@ def dashboard():
     listings = db.list_listings(filters)
     counts = db.count_by_type(d)
     bar = db.avg_price_by_ward(loai_bds, d)
+
+    # Các mục "khảo sát thị trường" gộp thẳng vào Tổng quan (trước là /heatmap, /xu-huong, /so-nguon)
+    heat_points = db.heatmap_data(loai_bds, district_id=d)
+    trend = db.trend_data(loai_bds, district_id=d)
+    src_overall = db.source_overall(loai_bds, d)
+    src_by_ward = db.source_by_ward(loai_bds, d)
+    # Teaser "Săn hàng ngộp": chỉ cần SỐ cụm nghi trùng (không bê cả bảng vào)
+    n_clusters = len(db.duplicate_clusters(loai_bds, district_id=d))
+
     return render_template(
         "dashboard.html",
         listings=listings,
@@ -104,6 +229,16 @@ def dashboard():
         has_ward_chart=len(bar) > 0,   # ẩn chart theo phường nếu không đủ data
         bar_data=json.dumps(bar),
         scatter_data=json.dumps(db.scatter_data(loai_bds, d)),
+        # --- Gộp khảo sát thị trường ---
+        heat_points=json.dumps(heat_points),
+        n_heat=len(heat_points),
+        trend=json.dumps(trend),
+        n_dates=len(trend["dates"]),
+        trend_pct=trend["pct"],
+        has_demo=db.snapshot_has_demo(),
+        src_overall=src_overall,
+        src_by_ward=src_by_ward,
+        n_clusters=n_clusters,
     )
 
 
@@ -162,21 +297,6 @@ def so_sanh():
     )
 
 
-@app.route("/so-nguon")
-def so_nguon():
-    """So sánh giá giữa các nguồn (Batdongsan vs Chợ Tốt vs mogi) — toàn quận + theo phường."""
-    loai_bds = _loai_bds()
-    d = _district()
-    return render_template(
-        "so_nguon.html",
-        loai_bds=loai_bds,
-        loai_bds_label=LOAI_BDS_LABEL,
-        source_label=SOURCE_LABEL,
-        overall=db.source_overall(loai_bds, d),
-        by_ward=db.source_by_ward(loai_bds, d),
-    )
-
-
 @app.route("/trung-lap")
 def trung_lap():
     """SRS Mở rộng 2 — gom cụm tin trùng / môi giới kê giá."""
@@ -193,53 +313,125 @@ def trung_lap():
 
 @app.route("/vay-von")
 def vay_von():
-    """Tính vay vốn: vốn tự có tối thiểu, trả góp hàng tháng, lãi theo thời gian."""
-    from finance import loan_breakdown
+    """Tính vay vốn + thẩm định khả năng vay theo lãi suất THẬT của ngân hàng.
+
+    Chọn ngân hàng (mặc định BIDV) → auto lấy lãi ưu đãi/thả nổi + LTV + DTI.
+    Chọn 'tu_nhap' để tự nhập lãi cố định (tính case khác). Nhập thu nhập để thẩm định.
+    """
+    from finance import loan_breakdown, appraise_loan, compare_banks
+    import bank_rates
+
+    rates = bank_rates.load()
+    banks = rates["banks"]
+    bank_key = request.args.get("bank") or bank_rates.DEFAULT_BANK
+    if bank_key not in banks and bank_key != "tu_nhap":
+        bank_key = bank_rates.DEFAULT_BANK
+
     gia = _f("gia")
+    thu_nhap = _f("thu_nhap")
     try:
         ty_le_vay = float(request.args.get("ty_le_vay") or 70) / 100
-        lai_suat = float(request.args.get("lai_suat") or 10)
         nam = int(float(request.args.get("nam") or 20))
     except ValueError:
-        ty_le_vay, lai_suat, nam = 0.7, 10.0, 20
+        ty_le_vay, nam = 0.7, 20
 
-    result = loan_breakdown(gia, ty_le_vay, lai_suat, nam) if gia else None
+    result = appraise = None
+    bank = banks.get(bank_key)
+    if bank_key == "tu_nhap":
+        # Tự nhập: lãi cố định 1 giai đoạn
+        try:
+            lai_suat = float(request.args.get("lai_suat") or 10)
+        except ValueError:
+            lai_suat = 10.0
+        if gia:
+            result = loan_breakdown(gia, ty_le_vay, lai_suat, nam)
+            # Thẩm định với LTV/DTI mặc định + lãi tự nhập làm "thả nổi"
+            appraise = appraise_loan(
+                gia, thu_nhap,
+                {"ten": "Tự nhập", "ltv_max": 1.0, "dti_max": 0.6, "lai_tha_noi": lai_suat},
+                ty_le_vay, nam) if (gia and thu_nhap) else None
+        sel_lai = lai_suat
+    else:
+        # Theo ngân hàng: lãi 2 giai đoạn + LTV/DTI của bank
+        if gia:
+            result = loan_breakdown(
+                gia, ty_le_vay, bank["lai_tha_noi"], nam,
+                lai_uu_dai=bank["lai_uu_dai"], uu_dai_thang=bank["uu_dai_thang"],
+                lai_tha_noi=bank["lai_tha_noi"])
+            if thu_nhap:
+                appraise = appraise_loan(gia, thu_nhap, bank, ty_le_vay, nam)
+        sel_lai = bank["lai_tha_noi"] if bank else 10.0
+
+    # Bảng so sánh & xếp hạng tất cả ngân hàng cho đúng tình huống user nhập
+    compare = compare_banks(gia, thu_nhap, ty_le_vay, nam, banks) if gia else None
+
+    # Vài số liệu "kịch bản" để kể chuyện cho người mua lần đầu (tránh để template tính)
+    story = None
+    if result:
+        jump = (result["tra_thang_tha_noi"] - result["tra_thang_uu_dai"]) \
+            if result.get("hai_gd") else 0
+        story = {
+            "jump": round(jump, 1),
+            "jump_pct": round(jump / result["tra_thang_uu_dai"] * 100) if result.get("hai_gd") and result["tra_thang_uu_dai"] else 0,
+            "lai_vs_gia_pct": round(result["tong_lai"] / result["gia"] * 100) if result["gia"] else 0,
+            "tong_tra_ratio": round(result["tong_tra"] / result["gia"], 2) if result["gia"] else 0,
+        }
+
+    can_re, re_msg = bank_rates.can_refetch()
     return render_template(
         "vay_von.html",
         result=result,
-        sel={"gia": gia, "ty_le_vay": round(ty_le_vay * 100),
-             "lai_suat": lai_suat, "nam": nam},
+        appraise=appraise,
+        compare=compare,
+        story=story,
+        banks=bank_rates.bank_choices(),
+        bank=bank,
+        bank_key=bank_key,
+        rates_meta={"fetched_at": rates.get("fetched_at"),
+                    "source": rates.get("source"), "is_demo": rates.get("is_demo")},
+        can_refetch=can_re, refetch_msg=re_msg,
+        sel={"gia": gia, "thu_nhap": thu_nhap,
+             "ty_le_vay": round(ty_le_vay * 100), "lai_suat": sel_lai, "nam": nam},
     )
 
 
+@app.route("/vay-von/refetch", methods=["POST"])
+def vay_von_refetch():
+    """Lấy lãi suất MỚI NHẤT theo yêu cầu (chạy fetch_rates). Chặn nếu đã lấy được hôm nay.
+    Trả JSON để JS cập nhật, không reload toàn trang."""
+    from flask import jsonify
+    import bank_rates
+    from fetch_rates import run_fetch
+
+    ok, msg = bank_rates.can_refetch()
+    if not ok:
+        return jsonify({"ok": False, "skipped": True, "msg": msg}), 200
+    res = run_fetch()
+    if res["ok"]:
+        res["msg"] = f"Đã cập nhật: {', '.join(res['updated'])}."
+        if res["failed"]:
+            res["msg"] += f" Chưa lấy được: {', '.join(res['failed'])}."
+    else:
+        res["msg"] = ("Chưa lấy được lãi thật (nguồn chặn hoặc chưa cấu hình parse). "
+                      "Vẫn dùng mức tham khảo. Thử lại trên mạng 4G/thường.")
+    return jsonify(res), 200
+
+
+# Các trang khảo sát thị trường đã GỘP vào Tổng quan (/). Giữ route cũ → redirect
+# để link/bookmark cũ không vỡ; chuyển thẳng tới anchor section tương ứng.
 @app.route("/heatmap")
 def heatmap():
-    """SRS Mở rộng 3 — bản đồ nhiệt giá theo phường (bubble map, centroid phường)."""
-    loai_bds = _loai_bds()
-    points = db.heatmap_data(loai_bds, district_id=_district())
-    return render_template(
-        "heatmap.html",
-        loai_bds=loai_bds,
-        loai_bds_label=LOAI_BDS_LABEL,
-        points=json.dumps(points),
-        n_points=len(points),
-    )
+    return redirect(url_for("dashboard", loai_bds=_loai_bds()) + "#ban-do")
 
 
 @app.route("/xu-huong")
 def xu_huong():
-    """SRS Mở rộng 4 — lịch sử & xu hướng giá theo thời gian."""
-    loai_bds = _loai_bds()
-    trend = db.trend_data(loai_bds, district_id=_district())
-    return render_template(
-        "xu_huong.html",
-        loai_bds=loai_bds,
-        loai_bds_label=LOAI_BDS_LABEL,
-        trend=json.dumps(trend),
-        n_dates=len(trend["dates"]),
-        pct=trend["pct"],
-        has_demo=db.snapshot_has_demo(),
-    )
+    return redirect(url_for("dashboard", loai_bds=_loai_bds()) + "#xu-huong")
+
+
+@app.route("/so-nguon")
+def so_nguon():
+    return redirect(url_for("dashboard", loai_bds=_loai_bds()) + "#so-nguon")
 
 
 if __name__ == "__main__":

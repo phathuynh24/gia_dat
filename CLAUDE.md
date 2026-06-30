@@ -22,7 +22,9 @@ Luồng: **Crawl thủ công → Parser tiếng Việt → SQLite → Web (Flask
 | `src/seed.py` | Sinh data MOCK để chạy thử (khác hẳn data thật) |
 | `src/db.py` | SQLite + truy vấn dashboard + định giá P25/P50/P75 |
 | `src/app.py` + `src/templates/` | Web Flask + Chart.js |
-| `src/finance.py` | Tính vay vốn: vốn tự có, trả góp annuity, lịch lãi theo năm |
+| `src/finance.py` | Vay vốn: lãi 2 GĐ (re-amortize), thẩm định LTV+DTI, so sánh/xếp hạng bank |
+| `src/bank_rates.py` | Đọc `data/bank_rates.json` (12 bank, BIDV mặc định), guard `can_refetch()` |
+| `src/fetch_rates.py` | Cào LS tiết kiệm THẬT (webgia.com qua Playwright) → suy lãi vay thả nổi |
 | `src/districts.py` | Cấu hình quận TP.HCM (mã chotot + slug bds) dùng chung 2 crawler |
 | `src/geo.py` | Toạ độ tâm phường Bình Thạnh (xấp xỉ) cho heatmap |
 | `src/snapshot.py` | Chụp mốc giá theo thời gian → bảng `price_snapshots` (có cờ `--demo`) |
@@ -48,16 +50,58 @@ Luồng: **Crawl thủ công → Parser tiếng Việt → SQLite → Web (Flask
     → `db.search_by_budget()`.
   - Cả 2 lọc `min_n=3` (bỏ phường nhiễu), tag "ít mẫu" khi n<3. Dùng median (robust outlier).
   - Mỗi dòng có link "Tính vay →" sang `/vay-von` (điền sẵn giá ước tính).
-- **Trang `/vay-von`** (`src/finance.py`): nhập giá → vốn tự có tối thiểu (mặc định 30%),
-  số tiền vay (70%), trả góp đều hàng tháng (annuity), tổng lãi, lịch dư nợ/lãi luỹ kế theo
-  năm + biểu đồ line. Params: `gia, ty_le_vay(%), lai_suat(%/năm), nam`. Mặc định 70%/10%/20 năm.
+- **Trang `/vay-von`** (`src/finance.py` + `src/bank_rates.py` + `src/fetch_rates.py`):
+  - **Lãi suất THẬT theo ngân hàng** (dropdown, mặc định **BIDV**, 12 bank): chọn bank → lãi
+    **2 giai đoạn** (ưu đãi đầu kỳ → thả nổi), tính lại khoản trả khi hết ưu đãi (re-amortize).
+    Chọn `tu_nhap` để nhập lãi cố định (case khác).
+  - **Lãi thả nổi = LS tiết kiệm 12T (THẬT) + biên độ** từng bank. Nút **"Lấy lãi mới nhất"**
+    (`POST /vay-von/refetch`) cào LS tiết kiệm thật từ **webgia.com bằng Playwright** rồi cộng
+    `bien_do` → lãi thả nổi. **Guard**: `bank_rates.can_refetch()` chặn nếu đã fetch số thật
+    trong ngày (`fetched_at==today and not is_demo`). 9/12 bank khớp tên webgia; ACB/Shinhan/HSBC
+    giữ mức tham khảo. Lãi ưu đãi (campaign) luôn curated. Data: `data/bank_rates.json` (cờ `is_demo`).
+  - **Thẩm định vay được/không** (`finance.appraise_loan`): cần ô **thu nhập/tháng** → check
+    **LTV** (vay vượt hạn mức bank?) + **DTI** (trả góp ở mức **lãi thả nổi — kịch bản xấu** ≤
+    `dti_max`×thu nhập). Trả kết luận Đủ/Chưa đủ + vay tối đa được duyệt + thu nhập tối thiểu.
+  - **So sánh & xếp hạng 12 bank** (`finance.compare_banks`): bảng theo đúng tình huống user,
+    xếp hạng *duyệt được trước → tổng lãi thấp nhất*. Hạng 1 = "TỐT NHẤT".
+  - **UX kể chuyện cho người mua lần đầu**: timeline 2 giai đoạn + callout "cú sốc lãi thả nổi"
+    (+% khi hết ưu đãi), khối **TỔNG TIỀN thực bỏ ra** sau N năm (gốc+lãi+vốn tự có) so với giá
+    mua (×bội số), rủi ro trong kỳ vay. Params: `gia, thu_nhap, ty_le_vay(%), bank, lai_suat, nam`.
+  - ⚠️ Cần `playwright install chromium` để nút refetch chạy. Lãi cố định cũ vẫn tương thích.
 - **Trang `/trung-lap`** (SRS Mở rộng 2 — `db.duplicate_clusters()`): gom tin nghi cùng 1 BĐS
   do nhiều môi giới rao. Khóa gom: nhà/đất = (phường, DT làm tròn, số tầng, loại đường);
   chung cư = (phường, dự án, số PN, DT). Hiển thị biên độ giá sàn–trần + giá sàn đàm phán,
   link "Tính vay (giá sàn)". Lưu ý Jinja: tránh đặt key dict tên `items` (đụng `dict.items`).
-- **Trang `/heatmap`** (SRS Mở rộng 3 — `db.heatmap_data()` + `src/geo.py`): KHÔNG dùng map
-  tile/geocoding ngoài (môi trường chặn CDN). Vẽ **bubble map bằng Chart.js**: mỗi phường 1 chấm
-  tại centroid (xấp xỉ), màu xanh→đỏ theo giá/m², size theo số tin. Toạ độ là gần đúng.
+- **GỘP vào Tổng quan (`/`)**: Bản đồ giá (`heatmap_data`), Xu hướng giá (`trend_data`), So sánh
+  nguồn (`source_overall/by_ward`) **không còn trang riêng** — render thành 3 section `<details>`
+  gập trong dashboard, **chart lazy-init khi mở** (canvas ẩn → Chart.js đo sai kích thước). Route
+  `/heatmap /xu-huong /so-nguon` giữ lại nhưng **redirect 302** về `/#anchor` (link cũ không vỡ;
+  vào qua anchor tự mở section + vẽ). Sub-nav nhóm "market" đã bỏ. Có teaser "🔥 Săn hàng ngộp"
+  (chỉ số cụm + link, không bê bảng). Mini-card "💰 Tính vay nhanh" đầu trang → nhảy `/vay-von`.
+  - Bubble map (cũ /heatmap): KHÔNG dùng tile/geocoding ngoài; Chart.js bubble tại centroid phường
+    (`src/geo.py`, xấp xỉ), màu xanh→đỏ theo giá/m², size theo số tin.
+- **Đồng bộ loại BĐS toàn app**: `loai_bds` **sticky qua session** (giống quận) — chọn ở tab nào
+  thì mọi tab giữ nguyên. Mặc định **`chung_cu`** (đứng đầu `LOAI_BDS_LABEL`), rồi nhà riêng, đất nền.
+- **Bản đồ vị trí TỪNG tin** (dashboard, cột "Vị trí"): nút `📍 Bản đồ` mỗi dòng → bung hàng
+  nhúng **iframe Google Maps** (KHÔNG cần API key). Lazy-load: chỉ nạp lần mở đầu (`toggleMap`).
+  ⚠️ **Google embed `q=<địa chỉ text>` KHÔNG thả ghim** với địa chỉ mức đường/phường/quận (chỉ
+  canh giữa khu) → user phàn nàn "không thấy marker". CÁCH FIX (đang dùng): khi bấm, JS **geocode
+  địa chỉ → toạ độ qua Nominatim/OSM** (`nominatim.openstreetmap.org/search?format=json`, free,
+  CORS ok, không key) rồi đưa Google `q=<lat>,<lng>&output=embed` → **LUÔN có ghim**. Nếu Nominatim
+  bị chặn/không ra kết quả thì fallback về embed `q=<địa chỉ text>` (canh khu, không ghim).
+  Lưu ý: Nominatim rate-limit ~1 req/s — ok vì chỉ gọi khi user bấm từng tin. Mức chính xác =
+  đường/phường/quận tuỳ độ chi tiết địa chỉ trích được (KHÔNG phải số nhà — tin rao VN hiếm có).
+  Chuỗi địa chỉ dựng bởi filter `app.mapquery`: **bắt buộc có phần CỤ THỂ (tên đường/dự án)**
+  thì Google mới thả GHIM — query chỉ mức phường sẽ canh giữa khu, KHÔNG có ghim. Cách trích:
+  `_street_from_url` (batdongsan nhúng `-duong-<đường>-phuong-` trong slug),
+  `_street_from_title` (chotot/mogi: sau 'đường'/'mặt tiền'/'MT' → các từ Hoa liền nhau, dừng ở
+  số/phẩy/chữ thường; ưu tiên keyword 'đường' để né 'Mặt Tiền 4Lầu Đường ...'),
+  `_project_from_url` (dự án chung cư sau `-phuong-N-`). Hit-rate ~75% tin Bình Thạnh có tên đường;
+  25% còn lại fallback mức phường (không ghim — vì tin rao VN hiếm khi ghi số nhà). Luôn gắn đuôi
+  quận + "TP Hồ Chí Minh". Link "Mở trong Google Maps ↗" làm fallback nếu mạng chặn iframe.
+  ⚠️ ĐÃ THỬ & BỎ: vẽ marker từng tin bằng Leaflet/centroid phường + jitter → SAI (marker xếp
+  thành vòng tròn + rơi xuống sông) vì KHÔNG có toạ độ thật. Bài học: đừng bịa toạ độ —
+  để Google geocode từ địa chỉ text là chuẩn nhất khi chưa có lat/lng thật trong DB.
 - **Trang `/xu-huong`** (SRS Mở rộng 4 — bảng `price_snapshots`, `db.record_snapshot/trend_data`):
   line chart median/m² theo thời gian (toàn quận + top phường) + % biến động, cảnh báo "tăng nóng"
   khi ≥10%. Cần ≥2 mốc. Hiện chỉ có 1 đợt crawl → đã sinh **mốc demo** (`snapshot.py --demo`,

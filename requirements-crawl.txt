@@ -2,3 +2,4 @@
 playwright==1.49.0     # cào batdongsan (cần: playwright install chromium)
 anthropic==0.42.0      # tùy chọn: parse tin khó bằng Claude API (cần ANTHROPIC_API_KEY)
 # (Chợ Tốt & mogi dùng urllib chuẩn, không cần thư viện thêm)
+# fetch_rates.py (cào LS tiết kiệm → suy lãi vay) dùng chính playwright ở trên + regex, không cần lib thêm.

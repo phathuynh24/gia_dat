@@ -1,20 +1,100 @@
 {% extends "base.html" %}
+{% block extra_head %}
+<style>
+  .rate-badge { display: inline-flex; flex-wrap: wrap; gap: 8px; align-items: center;
+                font-size: 12px; color: var(--muted); margin-top: 8px; }
+  .rate-badge .pill { background: #eef2ff; color: #4338ca; border-radius: 999px;
+                      padding: 2px 10px; font-weight: 600; }
+  .refetch { background: #fff; color: var(--accent); border: 1px solid var(--accent);
+             border-radius: 8px; padding: 7px 14px; font-size: 13px; font-weight: 600;
+             cursor: pointer; margin-top: 10px; }
+  .refetch:hover { background: #f0f6ff; }
+  .refetch:disabled { color: var(--muted); border-color: var(--line); cursor: not-allowed; background: #fafbfc; }
+  #refetchMsg { font-size: 12px; margin-top: 8px; }
+
+  /* Kịch bản trả nợ — timeline 2 giai đoạn */
+  .story p { font-size: 14px; line-height: 1.6; }
+  .timeline { display: flex; flex-direction: column; gap: 0; margin: 16px 0; }
+  .phase { display: flex; gap: 14px; padding: 14px 0; border-bottom: 1px solid var(--line); }
+  .phase:last-child { border-bottom: 0; }
+  .phase .dot { flex: 0 0 12px; width: 12px; height: 12px; border-radius: 50%; margin-top: 4px; }
+  .phase.p1 .dot { background: var(--accent2); }
+  .phase.p2 .dot { background: var(--warn); }
+  .phase .when { font-size: 12px; color: var(--muted); font-weight: 600; }
+  .phase .amt { font-size: 22px; font-weight: 800; }
+  .phase.p1 .amt { color: var(--accent2); }
+  .phase.p2 .amt { color: var(--warn); }
+  .phase .desc { font-size: 13px; color: var(--ink); margin-top: 2px; }
+  .shock { background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px;
+           padding: 8px 12px; font-size: 13px; color: #92400e; margin-top: 6px; }
+  /* Tổng tiền phải bỏ ra — điểm nhấn lớn nhất */
+  .grand { display: flex; flex-wrap: wrap; align-items: center; gap: 18px;
+           background: linear-gradient(135deg, #1f2937, #111827); color: #fff;
+           border-radius: 14px; padding: 22px 26px; margin-top: 18px; }
+  .grand .big { font-size: 40px; font-weight: 800; line-height: 1; }
+  .grand .big .u { font-size: 18px; font-weight: 700; opacity: .8; margin-left: 4px; }
+  .grand .lbl { font-size: 13px; opacity: .85; margin-top: 6px; max-width: 280px; }
+  .grand .vs { border-left: 1px solid rgba(255,255,255,.2); padding-left: 18px; font-size: 13px; }
+  .grand .vs b { font-size: 22px; }
+  .grand .vs .x { color: #fbbf24; }
+  @media (max-width: 600px) { .grand .vs { border-left: 0; padding-left: 0; } }
+
+  .appr { border-radius: 12px; padding: 16px 20px; margin-bottom: 20px; border: 1px solid; }
+  .appr.du { background: #f0fdf4; border-color: #bbf7d0; }
+  .appr.thieu { background: #fef2f2; border-color: #fecaca; }
+  .appr h2 { margin: 0 0 6px; font-size: 16px; }
+  .appr .verdict { font-size: 20px; font-weight: 800; }
+  .appr.du .verdict { color: var(--accent2); }
+  .appr.thieu .verdict { color: #dc2626; }
+  .appr .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 12px; }
+  @media (max-width: 700px) { .appr .grid3 { grid-template-columns: 1fr; } }
+  .appr .mini .v { font-size: 20px; font-weight: 700; color: var(--ink); }
+  .appr .mini .l { font-size: 12px; color: var(--muted); }
+  .fix { background: #fff; border: 1px dashed #fca5a5; border-radius: 8px; padding: 10px 14px;
+         font-size: 13px; margin-top: 12px; }
+  .risk { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; margin-top: 8px; }
+  .risk .ic { flex: 0 0 18px; }
+
+  /* Bảng so sánh ngân hàng */
+  .cmp tr.best td { background: #f0fdf4; }
+  .cmp .rank { font-weight: 800; color: var(--muted); }
+  .cmp tr.best .rank { color: var(--accent2); }
+  .badge-ok { background: #dcfce7; color: #16a34a; }
+  .badge-no { background: #fee2e2; color: #dc2626; }
+  .badge-best { background: var(--accent2); color: #fff; font-size: 10px; padding: 2px 7px;
+                border-radius: 999px; margin-left: 6px; font-weight: 700; }
+</style>
+{% endblock %}
 {% block content %}
 
 <div class="card">
-  <h2>Tính vay vốn mua nhà</h2>
-  <p class="muted">Nhập giá nhà → hệ thống tính <b>vốn tự có tối thiểu</b>, số tiền vay,
-     khoản trả góp hàng tháng và tổng lãi theo thời gian. Mặc định vay 70% (vốn tự có 30%).</p>
-  <form method="get" class="filters" style="grid-template-columns: repeat(5, 1fr);">
+  <h2>Tính vay vốn &amp; thẩm định khả năng vay</h2>
+  <p class="muted">Dành cho người mua nhà lần đầu: nhập tình hình tài chính của bạn, công cụ sẽ
+     dựng <b>kịch bản trả nợ theo thời gian</b>, cho biết bạn <b>có vay được không</b> và
+     <b>ngân hàng nào lợi nhất</b> cho trường hợp của bạn.</p>
+  <form method="get" class="filters" style="grid-template-columns: repeat(6, 1fr);">
+    <div>
+      <label>Ngân hàng</label>
+      <select name="bank" id="bankSel" onchange="onBank()">
+        {% for b in banks %}
+        <option value="{{ b.key }}" {% if bank_key == b.key %}selected{% endif %}>{{ b.ten }}</option>
+        {% endfor %}
+        <option value="tu_nhap" {% if bank_key == 'tu_nhap' %}selected{% endif %}>✏️ Tự nhập lãi</option>
+      </select>
+    </div>
     <div>
       <label>Giá nhà (tỷ) *</label>
       <input type="number" step="0.1" name="gia" value="{{ sel.gia or '' }}" required>
     </div>
     <div>
+      <label>Thu nhập/tháng (tr)</label>
+      <input type="number" step="1" name="thu_nhap" value="{{ sel.thu_nhap or '' }}" placeholder="để thẩm định">
+    </div>
+    <div>
       <label>Tỷ lệ vay (%)</label>
       <input type="number" step="5" name="ty_le_vay" value="{{ sel.ty_le_vay }}">
     </div>
-    <div>
+    <div id="laiBox" style="{% if bank_key != 'tu_nhap' %}display:none;{% endif %}">
       <label>Lãi suất (%/năm)</label>
       <input type="number" step="0.1" name="lai_suat" value="{{ sel.lai_suat }}">
     </div>
@@ -24,31 +104,169 @@
     </div>
     <div style="display:flex; align-items:end;"><button type="submit">Tính</button></div>
   </form>
+
+  {% if bank and bank_key != 'tu_nhap' %}
+  <div class="rate-badge">
+    <span class="pill">{{ bank.ten }}</span>
+    {% if bank.ls_tiet_kiem_12m %}<span class="pill" style="background:#dcfce7;color:#16a34a;">lãi thật</span>{% endif %}
+    Ưu đãi <b>{{ bank.lai_uu_dai }}%/năm</b> ({{ bank.uu_dai_thang }} tháng) → thả nổi <b>{{ bank.lai_tha_noi }}%/năm</b>
+    {% if bank.ls_tiet_kiem_12m %}<span title="Lãi thả nổi = LS tiết kiệm 12 tháng (số thật) + biên độ ngân hàng">(= tiết kiệm 12T {{ bank.ls_tiet_kiem_12m }}% + biên độ {{ bank.bien_do }}%)</span>{% endif %} ·
+    Vay tối đa <b>{{ (bank.ltv_max*100)|int }}%</b> · Kỳ hạn tới <b>{{ bank.ky_han_max }} năm</b>
+    {% if rates_meta.fetched_at %}· <span title="{{ rates_meta.source }}">cập nhật {{ rates_meta.fetched_at }}</span>{% endif %}
+  </div>
+  {% endif %}
+
+  {# Nút lấy lãi thật theo yêu cầu — chặn nếu đã lấy được hôm nay #}
+  <div>
+    <button type="button" class="refetch" id="refetchBtn"
+            {% if not can_refetch %}disabled title="{{ refetch_msg }}"{% endif %}
+            onclick="refetchRates()">🔄 Lấy lãi suất mới nhất</button>
+    <span id="refetchMsg" class="muted">
+      {% if not can_refetch %}{{ refetch_msg }}
+      {% elif rates_meta.is_demo %}⚠️ Đang dùng <b>mức tham khảo</b> — bấm để lấy lãi thật (cần mạng 4G/thường).
+      {% endif %}
+    </span>
+  </div>
 </div>
+
+{% if result and story %}
+{# ===== KỊCH BẢN TRẢ NỢ — kể chuyện cho người mua lần đầu ===== #}
+<div class="card story">
+  <h2>📖 Kịch bản trả nợ của bạn</h2>
+  <p>Bạn mua nhà <b>{{ result.gia }} tỷ</b>, cần sẵn <b>{{ result.von_tu_co }} tỷ</b> tiền mặt
+     ({{ 100 - result.ty_le_vay }}% — vốn tự có), vay <b>{{ result.von_vay }} tỷ</b> ({{ result.ty_le_vay }}%)
+     trả trong <b>{{ result.nam }} năm</b>.</p>
+
+  {% if result.hai_gd %}
+  <div class="timeline">
+    <div class="phase p1">
+      <div class="dot"></div>
+      <div>
+        <div class="when">THÁNG 1 – {{ result.uu_dai_thang }} ({{ (result.uu_dai_thang/12)|round(1) }} năm đầu)</div>
+        <div class="amt">{{ result.tra_thang_uu_dai }} tr/tháng</div>
+        <div class="desc">Giai đoạn "dễ thở" — lãi ưu đãi cố định <b>{{ result.lai_uu_dai }}%/năm</b>.
+           Đừng quen tay với mức này: nó sẽ hết hạn.</div>
+      </div>
+    </div>
+    <div class="phase p2">
+      <div class="dot"></div>
+      <div>
+        <div class="when">SAU ƯU ĐÃI → HẾT NĂM {{ result.nam }}</div>
+        <div class="amt">{{ result.tra_thang_tha_noi }} tr/tháng</div>
+        <div class="desc">Chuyển sang <b>lãi thả nổi {{ result.lai_tha_noi }}%/năm</b> (ngân hàng điều chỉnh theo thị trường).</div>
+        <div class="shock">⚡ <b>Cú sốc cần lường trước:</b> khoản trả tăng
+           <b>+{{ story.jump }} tr/tháng (+{{ story.jump_pct }}%)</b> ngay khi hết ưu đãi.
+           Nhiều người trẻ chỉ tính theo lãi ưu đãi rồi đuối khi qua giai đoạn này.</div>
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <p>Lãi cố định <b>{{ result.lai_suat }}%/năm</b>, trả đều <b>{{ result.tra_thang }} tr/tháng</b> suốt {{ result.nam }} năm.</p>
+  {% endif %}
+
+  <div class="grand">
+    <div>
+      <div class="big">{{ result.tong_tra }}<span class="u">tỷ</span></div>
+      <div class="lbl">TỔNG TIỀN bạn thực bỏ ra cho căn nhà sau {{ result.nam }} năm
+        (vốn tự có {{ result.von_tu_co }} + gốc vay {{ result.von_vay }} + lãi {{ result.tong_lai }} tỷ)</div>
+    </div>
+    <div class="vs">
+      Căn nhà giá mua <b>{{ result.gia }} tỷ</b><br>
+      → bạn trả <b class="x">×{{ story.tong_tra_ratio }}</b> giá trị thật<br>
+      <span style="opacity:.8;">riêng tiền lãi đã ~{{ story.lai_vs_gia_pct }}% giá nhà</span>
+    </div>
+  </div>
+  <p class="muted" style="margin-top:10px;">👉 Đây là con số để cân nhắc "có đáng không": vay càng dài / lãi thả nổi càng cao
+     thì bội số này càng lớn. So với kỳ vọng nhà tăng giá để biết thực sự lời hay lỗ.</p>
+</div>
+{% endif %}
+
+{% if appraise %}
+<div class="appr {{ appraise.ket_luan }}">
+  {% if appraise.ket_luan == 'du' %}
+  <h2>✅ <span class="verdict">Bạn vay được</span></h2>
+  <p class="muted">Với thu nhập <b>{{ sel.thu_nhap }} tr/tháng</b>, ngay cả khi lãi đã <b>thả nổi</b>
+     ({{ appraise.lai_tha_noi }}%) thì khoản trả vẫn nằm trong ngưỡng an toàn
+     (≤ {{ appraise.dti_max }}% thu nhập) và tỷ lệ vay không vượt hạn mức ngân hàng. Bạn có "đệm" để chịu biến động.</p>
+  {% else %}
+  <h2>⚠️ <span class="verdict">Chưa đủ điều kiện vay</span></h2>
+  <p class="muted">Vì sao chưa đủ:</p>
+  <div>
+    {% for r in appraise.ly_do %}
+    <div class="risk"><span class="ic">🔴</span><span>{{ r }}</span></div>
+    {% endfor %}
+  </div>
+  <div class="fix">💡 <b>Cách xử lý:</b>
+    {% if appraise.vuot_ltv %}góp thêm vốn tự có để hạ tỷ lệ vay; {% endif %}
+    chọn căn rẻ hơn (vay tối đa <b>~{{ appraise.von_vay_max }} tỷ</b> với tình hình hiện tại),
+    kéo dài thời hạn để giảm trả/tháng, hoặc tăng thu nhập lên
+    <b>~{{ appraise.thu_nhap_toi_thieu }} tr/tháng</b> (gồm cả người đồng vay).</div>
+  {% endif %}
+
+  <div class="grid3">
+    <div class="mini">
+      <div class="v">{{ appraise.von_vay_max }} tỷ</div>
+      <div class="l">Mức vay tối đa bạn được duyệt (theo hạn mức + thu nhập)</div>
+    </div>
+    <div class="mini">
+      <div class="v">{{ appraise.tra_thang_tha_noi }} tr/th</div>
+      <div class="l">Khoản trả khi lãi thả nổi ({{ appraise.lai_tha_noi }}%) — mức bạn phải chịu được lâu dài</div>
+    </div>
+    <div class="mini">
+      <div class="v">{{ appraise.thu_nhap_toi_thieu }} tr/th</div>
+      <div class="l">Thu nhập tối thiểu nên có để trả nợ ≤ {{ appraise.dti_max }}% (an toàn)</div>
+    </div>
+  </div>
+
+  <div class="risk" style="margin-top:14px;"><span class="ic">⏳</span>
+    <span><b>Rủi ro trong {{ sel.nam }} năm:</b> lãi thả nổi có thể tăng tiếp — nếu lên thêm 2%/năm,
+    khoản trả còn cao hơn {{ appraise.tra_thang_tha_noi }} tr/th. Thu nhập có thể gián đoạn (mất việc, ốm đau).
+    Nên chừa "đệm" 20–30% thu nhập, đừng vay kịch trần.</span></div>
+</div>
+{% endif %}
+
+{% if compare %}
+{# ===== SO SÁNH & XẾP HẠNG NGÂN HÀNG cho đúng tình huống user ===== #}
+<div class="card">
+  <h2>🏦 Ngân hàng nào lợi nhất cho bạn?
+    <span class="muted">(cùng giá {{ sel.gia }} tỷ · vay {{ sel.ty_le_vay }}%{% if sel.thu_nhap %} · thu nhập {{ sel.thu_nhap }} tr{% endif %})</span></h2>
+  <p class="muted">Xếp hạng {% if sel.thu_nhap %}<b>ưu tiên duyệt được</b>, rồi {% endif %}theo
+     <b>tổng lãi thấp nhất</b> (rẻ nhất). Hạng 1 = lợi nhất.</p>
+  <div style="overflow-x:auto;">
+  <table class="cmp">
+    <thead><tr>
+      <th>#</th><th>Ngân hàng</th><th>Ưu đãi</th><th>Thả nổi</th>
+      <th>Trả/tháng (ưu đãi → thả nổi)</th><th>Tổng lãi</th><th>Vay tối đa</th>
+      {% if sel.thu_nhap %}<th>Kết luận</th>{% endif %}
+    </tr></thead>
+    <tbody>
+      {% for r in compare %}
+      <tr class="{% if r.rank == 1 %}best{% endif %}">
+        <td class="rank">{{ r.rank }}</td>
+        <td><b>{{ r.ten }}</b>{% if r.rank == 1 %}<span class="badge-best">TỐT NHẤT</span>{% endif %}
+            {% if r.nam_bi_kep %}<br><span class="muted" style="font-size:11px;">kỳ hạn tối đa {{ r.ky_han_max }}n</span>{% endif %}</td>
+        <td>{{ r.lai_uu_dai }}% <span class="muted">/{{ r.uu_dai_thang }}th</span></td>
+        <td>{{ r.lai_tha_noi }}%</td>
+        <td>{{ r.tra_uu_dai }} → <b>{{ r.tra_tha_noi }}</b> tr</td>
+        <td>{{ r.tong_lai }} tỷ</td>
+        <td>{{ r.ltv_max }}%</td>
+        {% if sel.thu_nhap %}
+        <td>{% if r.duyet %}<span class="tag badge-ok">Duyệt</span>{% else %}<span class="tag badge-no">Không</span>{% endif %}</td>
+        {% endif %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <p class="muted" style="margin-top:10px;">ℹ️ "Tổng lãi" tính trên cả kỳ vay nên phản ánh chi phí thật hơn lãi ưu đãi ban đầu —
+     bank ưu đãi thấp nhưng thả nổi cao có thể đắt hơn về lâu dài. Số tham khảo, hãy xác nhận với ngân hàng.</p>
+</div>
+{% endif %}
 
 {% if result %}
-<div class="kpis">
-  <div class="kpi">
-    <div class="v">{{ result.von_tu_co }}<span class="u">tỷ</span></div>
-    <div class="l">Vốn tự có tối thiểu ({{ 100 - result.ty_le_vay }}%)</div>
-  </div>
-  <div class="kpi">
-    <div class="v">{{ result.von_vay }}<span class="u">tỷ</span></div>
-    <div class="l">Số tiền vay ngân hàng ({{ result.ty_le_vay }}%)</div>
-  </div>
-  <div class="kpi">
-    <div class="v">{{ result.tra_thang }}<span class="u">tr/th</span></div>
-    <div class="l">Trả góp hàng tháng (trung bình)</div>
-  </div>
-  <div class="kpi">
-    <div class="v">{{ result.tong_lai }}<span class="u">tỷ</span></div>
-    <div class="l">Tổng lãi phải trả ({{ result.nam }} năm)</div>
-  </div>
-</div>
-
 <div class="card">
-  <h2>Lãi & dư nợ theo thời gian
-      <span class="muted">(vay {{ result.von_vay }} tỷ · {{ result.lai_suat }}%/năm · {{ result.nam }} năm)</span></h2>
+  <h2>Lãi &amp; dư nợ theo thời gian
+      <span class="muted">(vay {{ result.von_vay }} tỷ · {{ result.nam }} năm)</span></h2>
   <canvas id="loanChart" height="90"></canvas>
   <div style="overflow-x:auto; margin-top:16px;">
   <table>
@@ -59,7 +277,7 @@
       {% for y in result.lich %}
       {% if y.nam % 2 == 1 or y.nam == result.nam %}
       <tr>
-        <td>{{ y.nam }}</td>
+        <td>{{ y.nam }}{% if result.hai_gd and y.nam == (result.uu_dai_thang // 12) %} <span class="muted">(hết ưu đãi)</span>{% endif %}</td>
         <td>{{ y.du_no }}</td>
         <td>{{ y.goc_da_tra }}</td>
         <td>{{ y.lai_luy_ke }}</td>
@@ -69,8 +287,6 @@
     </tbody>
   </table>
   </div>
-  <p class="muted" style="margin-top:12px;">⚠️ Tính theo <b>trả góp đều</b> (annuity) với lãi suất cố định —
-     thực tế ngân hàng thường có lãi ưu đãi giai đoạn đầu rồi thả nổi. Con số mang tính tham khảo.</p>
 </div>
 
 <script>
@@ -93,8 +309,32 @@
   });
 </script>
 {% else %}
-<div class="card"><p class="muted">Nhập giá nhà để tính phương án vay vốn.
-  Mẹo: từ trang <a href="/so-sanh">So sánh khu vực</a>, bấm "Tính vay" ở mỗi dòng để điền sẵn giá.</p></div>
+<div class="card"><p class="muted">Nhập giá nhà (và thu nhập nếu muốn thẩm định) để xem kịch bản vay.
+  Mẹo: từ trang <a href="/">Tổng quan</a> hoặc <a href="/so-sanh">So sánh khu vực</a>, bấm "Tính vay" để điền sẵn giá.</p></div>
 {% endif %}
 
+<script>
+  function onBank() {
+    const v = document.getElementById('bankSel').value;
+    document.getElementById('laiBox').style.display = (v === 'tu_nhap') ? '' : 'none';
+  }
+
+  // Lấy lãi thật theo yêu cầu — gọi endpoint, không reload toàn trang ngay; báo kết quả rồi reload nếu thành công.
+  async function refetchRates() {
+    const btn = document.getElementById('refetchBtn');
+    const msg = document.getElementById('refetchMsg');
+    btn.disabled = true;
+    msg.textContent = '⏳ Đang lấy lãi suất mới nhất…';
+    try {
+      const res = await fetch('/vay-von/refetch', { method: 'POST' });
+      const data = await res.json();
+      msg.innerHTML = (data.ok ? '✅ ' : 'ℹ️ ') + data.msg;
+      if (data.ok) setTimeout(() => location.reload(), 1200);  // reload để hiện số mới
+      else btn.disabled = data.skipped ? true : false;          // skip=đã fetch hôm nay → giữ disable
+    } catch (e) {
+      msg.textContent = '❌ Lỗi mạng khi lấy lãi suất. Thử lại trên mạng 4G/thường.';
+      btn.disabled = false;
+    }
+  }
+</script>
 {% endblock %}

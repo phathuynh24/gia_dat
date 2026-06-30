@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Dashboard giá nhà Bình Thạnh{% endblock %}</title>
   <script src="{{ url_for('static', filename='chart.umd.min.js') }}"></script>
+  {% block extra_head %}{% endblock %}
   <style>
     :root {
       --bg: #f5f6f8; --card: #fff; --ink: #1a2027; --muted: #6b7785;
@@ -109,15 +110,9 @@
       <a href="/vay-von" class="{% if grp == 'finance' %}active{% endif %}">Tính vay vốn</a>
     </nav>
   </header>
-  {# Sub-nav chỉ hiện cho nhóm có nhiều màn #}
-  {% if grp == 'market' %}
-  <div class="subnav">
-    <a href="/" class="{% if p == '/' %}active{% endif %}">Tổng quan</a>
-    <a href="/heatmap" class="{% if p == '/heatmap' %}active{% endif %}">Bản đồ giá</a>
-    <a href="/xu-huong" class="{% if p == '/xu-huong' %}active{% endif %}">Xu hướng giá</a>
-    <a href="/so-nguon" class="{% if p == '/so-nguon' %}active{% endif %}">So sánh nguồn</a>
-  </div>
-  {% elif grp == 'valuation' %}
+  {# Sub-nav chỉ hiện cho nhóm có nhiều màn.
+     Nhóm 'market' đã gộp Bản đồ/Xu hướng/So nguồn vào Tổng quan → không còn sub-nav. #}
+  {% if grp == 'valuation' %}
   <div class="subnav">
     <a href="/dinh-gia" class="{% if p == '/dinh-gia' %}active{% endif %}">Tính giá theo căn cụ thể</a>
     <a href="/so-sanh" class="{% if p == '/so-sanh' %}active{% endif %}">So sánh giá giữa các phường</a>
