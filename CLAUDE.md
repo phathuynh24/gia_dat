@@ -73,6 +73,13 @@ Luồng: **Crawl thủ công → Parser tiếng Việt → SQLite → Web (Flask
     (+% khi hết ưu đãi), khối **TỔNG TIỀN thực bỏ ra** sau N năm (gốc+lãi+vốn tự có) so với giá
     mua (×bội số), rủi ro trong kỳ vay. Params: `gia, thu_nhap, ty_le_vay(%), bank, lai_suat, nam`.
   - ⚠️ Cần `playwright install chromium` để nút refetch chạy. Lãi cố định cũ vẫn tương thích.
+  - **Sửa tay (override) — `data/bank_rates_user.json`**: user nhập số thật (sau khi gọi NH/đọc web)
+    qua form "✏️ Sửa lãi suất" trên `/vay-von`. Lưu RIÊNG file user, `bank_rates.load()` **merge đè**
+    lên data crawl → crawl lại KHÔNG ghi đè số user. Mỗi field sửa có nhãn "✎ bạn nhập" + ngày;
+    bảng "Nguồn dữ liệu" ghi "Bạn tự nhập". Nút **"↩︎ Khôi phục về dữ liệu crawl"** = `clear_override`
+    (xoá override bank đó → quay lại số crawl). Ô nhập để trống = giữ crawl (placeholder hiện số crawl).
+    Routes: `POST /vay-von/edit-bank`, `POST /vay-von/reset-bank`. `bank_rates.EDITABLE` định nghĩa field
+    sửa được (LTV/DTI nhập %→lưu 0–1).
 - **Trang `/trung-lap`** (SRS Mở rộng 2 — `db.duplicate_clusters()`): gom tin nghi cùng 1 BĐS
   do nhiều môi giới rao. Khóa gom: nhà/đất = (phường, DT làm tròn, số tầng, loại đường);
   chung cư = (phường, dự án, số PN, DT). Hiển thị biên độ giá sàn–trần + giá sàn đàm phán,

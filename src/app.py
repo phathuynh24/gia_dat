@@ -403,23 +403,31 @@ def vay_von():
                    f"+ biên độ {bank.get('bien_do')}% · cào {d_fetch}") if bank.get("lai_real") \
             else "tham khảo nội bộ (chưa cào được lãi thả nổi)"
         co_uu_dai = bank["lai_uu_dai"] < bank["lai_tha_noi"]
+        # field nào user tự nhập → ghi nguồn 'Bạn tự nhập · ngày'
+        uf = set(bank.get("_user_fields") or [])
+        ued = bank.get("user_edited_at")
+
+        def _src(default, *fields):
+            return (f"✎ Bạn tự nhập · {ued}" if uf.intersection(fields) else default)
+
         field_sources = [
             {"f": "Lãi ưu đãi (đầu kỳ)",
              "v": (f"{bank['lai_uu_dai']}%/năm · {bank['uu_dai_thang']} tháng"
                    if co_uu_dai else "— (bỏ giá HouseNow do cao hơn thả nổi)"),
-             "s": promo_src if co_uu_dai else "đã loại nguồn không hợp lý"},
+             "s": _src(promo_src if co_uu_dai else "đã loại nguồn không hợp lý",
+                       "lai_uu_dai", "uu_dai_thang")},
             {"f": "Lãi thả nổi (sau ưu đãi)",
-             "v": f"{bank['lai_tha_noi']}%/năm", "s": flt_src},
+             "v": f"{bank['lai_tha_noi']}%/năm", "s": _src(flt_src, "lai_tha_noi")},
             {"f": "Thời hạn vay tối đa",
-             "v": f"{bank['ky_han_max']} năm", "s": promo_src},
+             "v": f"{bank['ky_han_max']} năm", "s": _src(promo_src, "ky_han_max")},
             {"f": "Tỷ lệ vay tối đa (LTV)",
-             "v": f"{round(bank['ltv_max']*100)}%", "s": promo_src},
+             "v": f"{round(bank['ltv_max']*100)}%", "s": _src(promo_src, "ltv_max")},
             {"f": "Biên độ thả nổi",
              "v": f"+{bank.get('bien_do','?')}%",
-             "s": "tham khảo (ảnh HouseNow / ước lượng) — chưa có nguồn realtime"},
+             "s": _src("tham khảo (ảnh HouseNow / ước lượng) — chưa có nguồn realtime", "bien_do")},
             {"f": "Trần trả nợ/thu nhập (DTI)",
              "v": f"{round(bank['dti_max']*100)}%",
-             "s": "quy ước nội bộ (~60–70%, ngân hàng ít công bố)"},
+             "s": _src("quy ước nội bộ (~60–70%, ngân hàng ít công bố)", "dti_max")},
         ]
 
     can_re, re_msg = bank_rates.can_refetch()
@@ -434,6 +442,8 @@ def vay_von():
         banks_json=json.dumps({k: v for k, v in banks.items()}),
         bank=bank,
         bank_key=bank_key,
+        bank_base=bank_rates.load_base()["banks"].get(bank_key) if bank else None,
+        editable=bank_rates.EDITABLE,
         rates_meta={"fetched_at": rates.get("fetched_at"),
                     "source": rates.get("source"), "is_demo": rates.get("is_demo")},
         can_refetch=can_re, refetch_msg=re_msg,
@@ -462,6 +472,47 @@ def vay_von_refetch():
         res["msg"] = ("Chưa lấy được lãi thật (nguồn chặn hoặc chưa cấu hình parse). "
                       "Vẫn dùng mức tham khảo. Thử lại trên mạng 4G/thường.")
     return jsonify(res), 200
+
+
+@app.route("/vay-von/edit-bank", methods=["POST"])
+def vay_von_edit_bank():
+    """Lưu lãi suất USER tự nhập tay cho 1 bank (sau khi gọi NH / đọc web)."""
+    import bank_rates
+    key = request.form.get("bank")
+    if key not in bank_rates.load_base()["banks"]:
+        return redirect(url_for("vay_von"))
+    fields = {}
+    for f, (label, typ, is_pct) in bank_rates.EDITABLE.items():
+        raw = (request.form.get(f) or "").strip().replace(",", ".")
+        if raw == "":
+            continue
+        try:
+            val = float(raw)
+        except ValueError:
+            continue
+        if typ == "int":
+            val = int(val)
+        elif is_pct:                       # nhập theo % → lưu tỷ lệ 0–1
+            val = round(val / 100, 4)
+        fields[f] = val
+    if fields:
+        bank_rates.set_override(key, fields)
+    # giữ nguyên các tham số đang xem
+    args = {k: request.form.get(k) for k in ("bank", "gia", "thu_nhap", "ty_le_vay", "nam")
+            if request.form.get(k)}
+    return redirect(url_for("vay_von", **args) + "#rateBadge")
+
+
+@app.route("/vay-von/reset-bank", methods=["POST"])
+def vay_von_reset_bank():
+    """Khôi phục bank về dữ liệu CRAWL (xoá override user)."""
+    import bank_rates
+    key = request.form.get("bank")
+    if key:
+        bank_rates.clear_override(key)
+    args = {k: request.form.get(k) for k in ("bank", "gia", "thu_nhap", "ty_le_vay", "nam")
+            if request.form.get(k)}
+    return redirect(url_for("vay_von", **args) + "#rateBadge")
 
 
 # Các trang khảo sát thị trường đã GỘP vào Tổng quan (/). Giữ route cũ → redirect

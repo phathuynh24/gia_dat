@@ -11,6 +11,13 @@
   .refetch:hover { background: #f0f6ff; }
   .refetch:disabled { color: var(--muted); border-color: var(--line); cursor: not-allowed; background: #fafbfc; }
   #refetchMsg { font-size: 12px; margin-top: 8px; }
+  .edit-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 12px; }
+  @media (max-width: 760px) { .edit-grid { grid-template-columns: 1fr 1fr; } }
+  .edit-grid label { font-size: 12px; }
+  .edit-grid .crawl-hint { font-size: 11px; color: var(--muted); }
+  .reset-btn { background: #fff; color: #b45309; border: 1px solid #fed7aa; border-radius: 7px;
+               padding: 5px 12px; font-size: 12px; font-weight: 600; cursor: pointer; margin-left: 6px; }
+  .reset-btn:hover { background: #fff7ed; }
 
   /* Kịch bản trả nợ — timeline 2 giai đoạn */
   .story p { font-size: 14px; line-height: 1.6; }
@@ -146,6 +153,51 @@
     <p class="muted" style="margin-top:8px; font-size:12px;">Lãi thả nổi cào tự động (webgia.com).
        Ưu đãi/thời hạn/LTV từ topi.vn hoặc bảng so sánh — bấm "Lấy lãi mới nhất" để cập nhật.
        Biên độ &amp; DTI là tham khảo (ngân hàng ít công bố), nên xác nhận lại với ngân hàng.</p>
+  </details>
+  {% endif %}
+
+  {# ===== Sửa lãi suất thủ công (sau khi gọi NH / đọc web) ===== #}
+  {% if bank and bank_key != 'tu_nhap' %}
+  <details class="edit-rates" style="margin-top:12px;" {% if bank._user_fields %}open{% endif %}>
+    <summary style="cursor:pointer; font-size:13px; color:var(--accent2); font-weight:700;">
+      ✏️ Sửa lãi suất ngân hàng này (nhập số thật sau khi gọi NH / đọc web)
+      {% if bank._user_fields %}<span class="pill" style="background:#ede9fe;color:#7c3aed;">đã chỉnh tay · {{ bank.user_edited_at }}</span>{% endif %}
+    </summary>
+    <form method="post" action="/vay-von/edit-bank" class="edit-grid">
+      <input type="hidden" name="bank" value="{{ bank_key }}">
+      <input type="hidden" name="gia" value="{{ sel.gia or '' }}">
+      <input type="hidden" name="thu_nhap" value="{{ sel.thu_nhap or '' }}">
+      <input type="hidden" name="ty_le_vay" value="{{ sel.ty_le_vay }}">
+      <input type="hidden" name="nam" value="{{ sel.nam }}">
+      {% for f, meta in editable.items() %}
+      {% set label, typ, is_pct = meta %}
+      {% set cur = bank.get(f) %}
+      {% set base = bank_base.get(f) if bank_base else None %}
+      {% set shown = (cur*100)|round|int if is_pct and cur is not none else cur %}
+      {% set basev = (base*100)|round|int if is_pct and base is not none else base %}
+      <div>
+        <label>{{ label }}{% if f in (bank._user_fields or []) %} <span style="color:#7c3aed;">✎</span>{% endif %}</label>
+        <input type="number" step="0.1" name="{{ f }}" value="{{ shown if shown is not none else '' }}"
+               placeholder="{{ basev if basev is not none else '—' }}">
+        <span class="crawl-hint">crawl: {{ basev if basev is not none else '—' }}</span>
+      </div>
+      {% endfor %}
+      <div style="display:flex; align-items:end;"><button type="submit" style="background:var(--accent2);">💾 Lưu số tôi nhập</button></div>
+    </form>
+    <p class="muted" style="font-size:12px; margin-top:8px;">
+      Ô trống = giữ giá trị crawl (số mờ trong ô là giá trị crawl hiện tại). Số bạn nhập sẽ
+      <b>ưu tiên dùng</b> và không bị ghi đè khi cào lại.
+      {% if bank._user_fields %}
+      <form method="post" action="/vay-von/reset-bank" style="display:inline;">
+        <input type="hidden" name="bank" value="{{ bank_key }}">
+        <input type="hidden" name="gia" value="{{ sel.gia or '' }}">
+        <input type="hidden" name="thu_nhap" value="{{ sel.thu_nhap or '' }}">
+        <input type="hidden" name="ty_le_vay" value="{{ sel.ty_le_vay }}">
+        <input type="hidden" name="nam" value="{{ sel.nam }}">
+        <button type="submit" class="reset-btn">↩︎ Khôi phục về dữ liệu crawl</button>
+      </form>
+      {% endif %}
+    </p>
   </details>
   {% endif %}
 </div>

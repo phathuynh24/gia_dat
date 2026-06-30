@@ -15,6 +15,20 @@ import json
 import os
 
 _PATH = os.path.join(os.path.dirname(__file__), "..", "data", "bank_rates.json")
+# Override do USER tự nhập (sau khi gọi NH / đọc web) — lưu RIÊNG để crawl không ghi đè,
+# và để có thể KHÔI PHỤC về dữ liệu crawl. Merge đè lên data crawl khi load().
+_USER_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "bank_rates_user.json")
+
+# Field user được phép sửa tay → (nhãn, kiểu, có phải %/100 không)
+EDITABLE = {
+    "lai_uu_dai":   ("Lãi ưu đãi (%/năm)", "float", False),
+    "uu_dai_thang": ("Số tháng ưu đãi", "int", False),
+    "lai_tha_noi":  ("Lãi thả nổi (%/năm)", "float", False),
+    "bien_do":      ("Biên độ thả nổi (%)", "float", False),
+    "ltv_max":      ("Vay tối đa (% giá trị)", "pct", True),
+    "ky_han_max":   ("Kỳ hạn tối đa (năm)", "int", False),
+    "dti_max":      ("Trần trả nợ/thu nhập (%)", "pct", True),
+}
 
 # Fallback nếu thiếu file (để app không vỡ khi deploy mà chưa có data/bank_rates.json)
 _FALLBACK = {
@@ -29,8 +43,8 @@ _FALLBACK = {
 }
 
 
-def load() -> dict:
-    """Đọc bảng lãi suất. Trả dict {fetched_at, source, is_demo, banks{...}}."""
+def load_base() -> dict:
+    """Đọc bảng lãi suất CRAWL (chưa merge user override)."""
     try:
         with open(_PATH, encoding="utf-8") as f:
             data = json.load(f)
@@ -39,6 +53,59 @@ def load() -> dict:
     except (OSError, ValueError):
         pass
     return _FALLBACK
+
+
+def load_user() -> dict:
+    """Đọc override do user nhập tay. {bank_key: {field: value, _edited_at: 'YYYY-MM-DD'}}."""
+    try:
+        with open(_USER_PATH, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {}
+
+
+def save_user(d: dict) -> None:
+    with open(_USER_PATH, "w", encoding="utf-8") as f:
+        json.dump(d, f, ensure_ascii=False, indent=2)
+
+
+def load() -> dict:
+    """Bảng lãi suất ĐÃ MERGE: data crawl + override user (user đè lên). Đánh dấu field
+    nào user đã sửa (`_user_fields`) + ngày sửa (`user_edited_at`) để UI hiển thị."""
+    data = load_base()
+    user = load_user()
+    for key, ov in user.items():
+        b = data["banks"].get(key)
+        if not b:
+            continue
+        uf = []
+        for f, v in ov.items():
+            if f.startswith("_"):
+                continue
+            b[f] = v
+            uf.append(f)
+        if uf:
+            b["_user_fields"] = uf
+            b["user_edited_at"] = ov.get("_edited_at")
+    return data
+
+
+def set_override(bank_key: str, fields: dict) -> None:
+    """Lưu các field user nhập tay cho 1 bank (merge vào override hiện có)."""
+    user = load_user()
+    cur = user.get(bank_key, {})
+    cur.update({k: v for k, v in fields.items() if v is not None})
+    cur["_edited_at"] = datetime.date.today().isoformat()
+    user[bank_key] = cur
+    save_user(user)
+
+
+def clear_override(bank_key: str) -> None:
+    """Xoá toàn bộ override của 1 bank → quay lại dữ liệu crawl."""
+    user = load_user()
+    if bank_key in user:
+        del user[bank_key]
+        save_user(user)
 
 
 # Khoá ngân hàng mặc định (user dùng BIDV nhiều) — đặt đầu danh sách hiển thị.
