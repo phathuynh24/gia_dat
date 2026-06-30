@@ -27,8 +27,9 @@ from html import unescape
 PATH = os.path.join(os.path.dirname(__file__), "..", "data", "bank_rates.json")
 WEBGIA_URL = "https://webgia.com/lai-suat/"
 
-# Vị trí cột (sau cột tên bank): KKH,1,3,6,9,[12],13,18,24,36 → index 5 = kỳ 12 tháng.
+# Vị trí cột (sau cột tên bank): KKH,1,3,6,9,[12],13,18,[24],36.
 COL_12M = 5
+COL_24M = 8
 
 
 def load() -> dict:
@@ -68,7 +69,7 @@ def fetch_savings() -> dict:
         html = page.content()
         browser.close()
 
-    out: dict[str, float] = {}
+    out: dict[str, dict] = {}
     for tr in re.findall(r"<tr[^>]*>.*?</tr>", html, re.S):
         cells = [unescape(re.sub(r"<[^>]+>", "", c)).strip()
                  for c in re.findall(r"<td[^>]*>.*?</td>", tr, re.S)]
@@ -79,12 +80,9 @@ def fetch_savings() -> dict:
             continue
         vals = cells[1:]
         ls12 = _num(vals[COL_12M]) if len(vals) > COL_12M else None
-        if ls12 is None:                              # fallback 13T / 24T nếu 12T trống
-            for i in (COL_12M + 1, COL_12M + 3):
-                if len(vals) > i and _num(vals[i]) is not None:
-                    ls12 = _num(vals[i]); break
-        if ls12:
-            out.setdefault(name.lower(), ls12)        # giữ hàng đầu (thường KH cá nhân)
+        ls24 = _num(vals[COL_24M]) if len(vals) > COL_24M else None
+        if ls12 or ls24:
+            out.setdefault(name.lower(), {"12": ls12, "24": ls24})   # giữ hàng đầu (KH cá nhân)
     return out
 
 
@@ -107,14 +105,24 @@ def run_fetch() -> dict:
         # Match CHÍNH XÁC theo tên webgia (case-insensitive). KHÔNG match lỏng/substring —
         # 'mb' là substring của 'techco(mb)ank'/'saco(mb)ank' → từng gây lấy nhầm lãi MB.
         wname = (b.get("webgia") or "").strip().lower()
-        ls12 = savings.get(wname) if wname else None
-        if ls12 and b.get("bien_do"):
-            b["ls_tiet_kiem_12m"] = ls12
-            b["lai_tha_noi"] = round(ls12 + float(b["bien_do"]), 2)
+        srow = savings.get(wname) if wname else None
+        # Kỳ tham chiếu lãi thả nổi: '12' / '24' (theo công thức bank). 'co_so' → không
+        # phải lãi tiền gửi (dùng tạm 12T làm xấp xỉ, đánh dấu ước tính).
+        ref = str(b.get("ky_han_tham_chieu") or "12")
+        # Chỉ suy được lãi thả nổi THẬT khi cơ sở là LÃI TIỀN GỬI (12T/24T) — webgia có.
+        # Bank dùng 'lãi cơ sở' (MB/ACB/VPBank): webgia không có lãi cơ sở → KHÔNG bịa từ tiền gửi
+        # (từng ra thả nổi < ưu đãi, vô lý) → fallback baseline curated, nhãn tham khảo.
+        base = srow.get(ref) if (srow and ref in ("12", "24")) else None
+        if base and b.get("bien_do"):
+            b["ls_tham_chieu"] = base
+            b["ls_ky_han"] = "24T" if ref == "24" else "12T"
+            b.pop("tha_noi_uoc_tinh", None)
+            b["lai_tha_noi"] = round(base + float(b["bien_do"]), 2)
             b["lai_real"] = True
             updated.append(b["ten"])
         else:
-            b.pop("ls_tiet_kiem_12m", None)           # xoá giá trị cũ nếu không khớp được nữa
+            for f in ("ls_tham_chieu", "ls_ky_han", "ls_tiet_kiem_12m", "tha_noi_uoc_tinh"):
+                b.pop(f, None)
             if b.get("lai_tha_noi_goc") is not None:   # khôi phục lãi curated (tránh giữ số sai cũ)
                 b["lai_tha_noi"] = b["lai_tha_noi_goc"]
             b["lai_real"] = False

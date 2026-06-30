@@ -108,12 +108,14 @@
   <div class="rate-badge" id="rateBadge" {% if not bank or bank_key == 'tu_nhap' %}style="display:none;"{% endif %}>
   {% if bank and bank_key != 'tu_nhap' %}
     <span class="pill">{{ bank.ten }}</span>
-    {% if bank.lai_real %}<span class="pill" style="background:#dcfce7;color:#16a34a;">lãi thật</span>
-    {% else %}<span class="pill" style="background:#fef3c7;color:#b45309;" title="webgia.com không công bố LS tiết kiệm của ngân hàng này nên lãi thả nổi là mức tham khảo (không cào được)">tham khảo</span>{% endif %}
+    {% if bank.lai_real and bank.tha_noi_uoc_tinh %}<span class="pill" style="background:#dbeafe;color:#1d4ed8;" title="Lãi thả nổi ước tính (lãi cơ sở ≈ tiết kiệm 12T)">thả nổi ước tính</span>
+    {% elif bank.lai_real %}<span class="pill" style="background:#dcfce7;color:#16a34a;">lãi thả nổi thật</span>
+    {% else %}<span class="pill" style="background:#fef3c7;color:#b45309;" title="Chưa cào được lãi thả nổi — mức tham khảo">tham khảo</span>{% endif %}
     Ưu đãi <b>{{ bank.lai_uu_dai }}%/năm</b> ({{ bank.uu_dai_thang }} tháng) → thả nổi <b>{{ bank.lai_tha_noi }}%/năm</b>
-    {% if bank.lai_real %}<span title="Lãi thả nổi = LS tiết kiệm 12 tháng (số thật) + biên độ ngân hàng">(= tiết kiệm 12T {{ bank.ls_tiet_kiem_12m }}% + biên độ {{ bank.bien_do }}%)</span>{% endif %} ·
+    {% if bank.lai_real %}<span title="Lãi thả nổi = lãi tiền gửi {{ bank.ls_ky_han }} (số thật webgia) + biên độ ngân hàng">(= tiền gửi {{ bank.ls_ky_han }} {{ bank.ls_tham_chieu }}% + biên độ {{ bank.bien_do }}%)</span>{% endif %} ·
     Vay tối đa <b>{{ (bank.ltv_max*100)|int }}%</b> · Kỳ hạn tới <b>{{ bank.ky_han_max }} năm</b>
-    {% if rates_meta.fetched_at %}· <span title="{{ rates_meta.source }}">cập nhật {{ rates_meta.fetched_at }}</span>{% endif %}
+    {% if bank.an_han_goc_thang %}· Ân hạn gốc <b>{{ bank.an_han_goc_thang }} tháng</b>{% endif %}
+    {% if bank.nguon %}· <span title="{{ bank.nguon }}">nguồn: HouseNow</span>{% endif %}
   </div>
   {% endif %}
 
@@ -155,9 +157,15 @@
         <div class="when">SAU ƯU ĐÃI → HẾT NĂM {{ result.nam }}</div>
         <div class="amt">{{ result.tra_thang_tha_noi }} tr/tháng</div>
         <div class="desc">Chuyển sang <b>lãi thả nổi {{ result.lai_tha_noi }}%/năm</b> (ngân hàng điều chỉnh theo thị trường).</div>
+        {% if story.jump > 0 %}
         <div class="shock">⚡ <b>Cú sốc cần lường trước:</b> khoản trả tăng
            <b>+{{ story.jump }} tr/tháng (+{{ story.jump_pct }}%)</b> ngay khi hết ưu đãi.
            Nhiều người trẻ chỉ tính theo lãi ưu đãi rồi đuối khi qua giai đoạn này.</div>
+        {% else %}
+        <div class="shock" style="background:#f0fdf4;border-color:#bbf7d0;color:#166534;">✓ Hiện lãi thả nổi
+           <b>thấp hơn</b> lãi ưu đãi nên khoản trả không tăng sau ưu đãi. <b>Nhưng</b> lãi thả nổi neo theo
+           thị trường — có thể tăng bất cứ lúc nào, đừng tính dài hạn theo mức thấp này.</div>
+        {% endif %}
       </div>
     </div>
   </div>
@@ -327,16 +335,21 @@
     const b = BANKS[v];
     if (v === 'tu_nhap' || !b) { badge.style.display = 'none'; return; }
     badge.style.display = '';
-    const realPill = b.lai_real
-      ? '<span class="pill" style="background:#dcfce7;color:#16a34a;">lãi thật</span>'
-      : '<span class="pill" style="background:#fef3c7;color:#b45309;" title="Chưa cào được lãi thật — mức tham khảo">tham khảo</span>';
+    let realPill;
+    if (b.lai_real && b.tha_noi_uoc_tinh)
+      realPill = '<span class="pill" style="background:#dbeafe;color:#1d4ed8;" title="Lãi thả nổi ước tính (lãi cơ sở ≈ tiết kiệm 12T)">thả nổi ước tính</span>';
+    else if (b.lai_real)
+      realPill = '<span class="pill" style="background:#dcfce7;color:#16a34a;">lãi thả nổi thật</span>';
+    else
+      realPill = '<span class="pill" style="background:#fef3c7;color:#b45309;" title="Chưa cào được lãi thả nổi — mức tham khảo">tham khảo</span>';
     const deriv = b.lai_real
-      ? ` <span title="Lãi thả nổi = LS tiết kiệm 12T (thật) + biên độ">(= tiết kiệm 12T ${b.ls_tiet_kiem_12m}% + biên độ ${b.bien_do}%)</span>` : '';
+      ? ` <span title="Lãi thả nổi = lãi tiền gửi ${b.ls_ky_han} (thật) + biên độ">(= tiền gửi ${b.ls_ky_han} ${b.ls_tham_chieu}% + biên độ ${b.bien_do}%)</span>` : '';
+    const anhan = b.an_han_goc_thang ? ` · Ân hạn gốc <b>${b.an_han_goc_thang} tháng</b>` : '';
+    const ngn = b.nguon ? ` · nguồn: HouseNow` : '';
     badge.innerHTML =
       `<span class="pill">${b.ten}</span> ${realPill} ` +
       `Ưu đãi <b>${b.lai_uu_dai}%/năm</b> (${b.uu_dai_thang} tháng) → thả nổi <b>${b.lai_tha_noi}%/năm</b>${deriv} · ` +
-      `Vay tối đa <b>${Math.round(b.ltv_max*100)}%</b> · Kỳ hạn tới <b>${b.ky_han_max} năm</b>` +
-      (FETCHED_AT ? ` · cập nhật ${FETCHED_AT}` : '');
+      `Vay tối đa <b>${Math.round(b.ltv_max*100)}%</b> · Kỳ hạn tới <b>${b.ky_han_max} năm</b>${anhan}${ngn}`;
   }
 
   // Lấy lãi thật theo yêu cầu — gọi endpoint, không reload toàn trang ngay; báo kết quả rồi reload nếu thành công.

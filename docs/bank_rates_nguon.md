@@ -19,30 +19,45 @@
 **Ưu tiên lấy đúng:** `lai_tha_noi` (hoặc `ls_tiet_kiem_12m` + `bien_do`) → `ltv_max` → `ky_han_max`
 → `lai_uu_dai`. Lãi ưu đãi đổi theo campaign nên có thể chấp nhận mock lâu hơn.
 
+## 1b. Nguồn THẬT đang dùng
+
+- **Ảnh HouseNow** (user cung cấp 2026-06) — bảng "So sánh lãi vay BĐS qua HouseNow": cho **7 bank**
+  (MB, BIDV, Vietcombank, ACB, VPBank, VietinBank, Agribank) các trường THẬT: lãi ưu đãi (cố định
+  12T), **công thức thả nổi** (kỳ tham chiếu + biên độ), thời hạn tối đa, LTV, ân hạn gốc, phí trả
+  trước. Lưu vào `data/bank_rates.json` (field `nguon`, `ky_han_tham_chieu`, `bien_do`, `phi_tra_truoc`...).
+  ⚠️ Là lãi "qua HouseNow" (môi giới) nên có thể khác lãi vay trực tiếp tại quầy.
+- **webgia.com** (Playwright) — LS **tiền gửi** 12T/24T thật → ghép công thức trên ra lãi thả nổi
+  cho bank dùng tiền gửi làm cơ sở (BIDV 24T, VCB 12T, VietinBank 24T, Agribank 24T). Bank dùng
+  "lãi cơ sở" (MB, ACB, VPBank) → tạm lấy tiền gửi 12T làm xấp xỉ (cờ `tha_noi_uoc_tinh`).
+- **shinhan.com.vn** — chỉ LTV 80% + kỳ hạn 50 năm (lãi không công bố).
+
 ## 2. Trạng thái THẬT / MOCK từng ngân hàng (cập nhật 2026-06-30)
 
 Ghi chú: "tiết kiệm thật" = LS tiết kiệm 12T cào từ webgia.com; lãi thả nổi của các bank này
 là **ước tính** (tiết kiệm thật + biên độ MOCK) chứ chưa phải lãi vay công bố.
 
-| Bank | Lãi ưu đãi | Lãi thả nổi | LTV | Kỳ hạn | Ghi chú |
-|------|-----------|-------------|-----|--------|---------|
-| **BIDV** | 🔴 mock | 🟡 ước tính (tiết kiệm 5,9% thật + 4,0% mock) | 🔴 mock 85% | 🔴 mock 25n | bank chính của user — ưu tiên lấy thật |
-| **Vietcombank** | 🔴 mock | 🟡 ước tính (tiết kiệm 5,9% + 4,0%) | 🔴 mock 70% | 🔴 mock 20n | |
-| **VietinBank** | 🔴 mock | 🟡 ước tính (5,9% + 3,8%) | 🔴 mock 80% | 🔴 mock 20n | |
-| **Agribank** | 🔴 mock | 🟡 ước tính (5,9% + 3,8%) | 🔴 mock 75% | 🔴 mock 20n | |
-| **MB Bank** | 🔴 mock | 🟡 ước tính (4,85% + 4,0%) | 🔴 mock 75% | 🔴 mock 20n | |
-| **TPBank** | 🔴 mock | 🟡 ước tính (6,2% + 4,2%) | 🔴 mock 70% | 🔴 mock 20n | |
-| **VPBank** | 🔴 mock | 🟡 ước tính (6,6% + 4,5%) | 🔴 mock 75% | 🔴 mock 25n | |
-| **Techcombank** | 🔴 mock | 🔴 mock 11,0% | 🔴 mock 70% | 🔴 mock 25n | webgia không có → cần link riêng |
-| **ACB** | 🔴 mock | 🔴 mock 11,0% | 🔴 mock 70% | 🔴 mock 20n | webgia không có → cần link riêng |
-| **Sacombank** | 🔴 mock | 🔴 mock 11,5% | 🔴 mock 70% | 🔴 mock 25n | webgia không có → cần link riêng |
-| **Shinhan Bank** | 🔴 mock | 🔴 mock 9,9% | 🟢 **THẬT 80%** | 🟢 **THẬT 50n** | lãi không công bố trên web (phải liên hệ) |
+| Bank | Lãi ưu đãi | Lãi thả nổi | LTV | Kỳ hạn | Nguồn |
+|------|-----------|-------------|-----|--------|-------|
+| **BIDV** | 🟢 10%/12T | 🟢 10,2% (tiền gửi 24T 6,0% + 4,2%) | 🟢 80% | 🟢 40n | HouseNow + webgia |
+| **Vietcombank** | 🟢 10,5%/12T | 🟢 9,4% (tiền gửi 12T 5,9% + 3,5%) | 🟢 80% | 🟢 30n | HouseNow + webgia |
+| **VietinBank** | 🟢 12%/12T | 🟢 10,5% (tiền gửi 24T 6,0% + 4,5%) | 🟢 75% | 🟢 35n | HouseNow + webgia |
+| **Agribank** | 🟢 10,5%/12T | 🟢 9,0% (tiền gửi 24T 6,0% + 3,0%) | 🟢 80% | 🟢 35n | HouseNow + webgia |
+| **MB Bank** | 🟢 9,9%/12T | 🔴 10,8% mock (cơ sở + 3,5% — chưa cào được lãi cơ sở) | 🟢 80% | 🟢 35n | HouseNow (thiếu cơ sở) |
+| **VPBank** | 🟢 9,7%/12T | 🔴 11,8% mock (cơ sở + 3,5% — chưa cào được lãi cơ sở) | 🟢 80% | 🟢 35n | HouseNow (thiếu cơ sở) |
+| **ACB** | 🟢 11%/12T | 🔴 11,0% mock (cơ sở + 3,5% — chưa cào được lãi cơ sở) | 🟢 80% | 🟢 30n | HouseNow (thiếu cơ sở) |
+| **TPBank** | 🔴 mock | 🟡 10,4% (tiền gửi 12T 6,2% + 4,2% mock) | 🔴 mock 70% | 🔴 mock 20n | webgia (ko có trong ảnh) |
+| **Techcombank** | 🔴 mock | 🔴 mock 11,0% | 🔴 mock 70% | 🔴 mock 25n | cần link riêng |
+| **Sacombank** | 🔴 mock | 🔴 mock 11,5% | 🔴 mock 70% | 🔴 mock 25n | cần link riêng |
+| **Shinhan Bank** | 🔴 mock | 🔴 mock 9,9% | 🟢 80% | 🟢 50n | shinhan.com.vn (LTV/kỳ hạn) |
 | **HSBC** | 🔴 mock | 🔴 mock 9,75% | 🔴 mock 70% | 🔴 mock 25n | cần link riêng |
 
 🟢 thật · 🟡 ước tính (1 phần thật) · 🔴 mock
 
-**Tóm tắt:** chưa bank nào THẬT 100%. Phần thật hiện có = LS tiết kiệm 12T của 7 bank
-(BIDV, VCB, VietinBank, Agribank, MB, TPBank, VPBank) + LTV/kỳ hạn của Shinhan.
+**Tóm tắt:** 7 bank (MB, BIDV, VCB, ACB, VPBank, VietinBank, Agribank) đã có ưu đãi + LTV + kỳ hạn
+THẬT từ ảnh HouseNow. Lãi thả nổi: 4 bank thật (BIDV/VCB/VietinBank/Agribank), 2 ước tính (MB/VPBank
+dùng lãi cơ sở), ACB chờ base. Còn mock hoàn toàn: Techcombank, Sacombank, HSBC (+ ưu đãi của Shinhan/TPBank).
+**Cần thêm link cho:** Techcombank, Sacombank, HSBC (mọi trường); cơ sở ACB; và lãi vay trực tiếp
+tại quầy (để đối chiếu với lãi "qua HouseNow").
 
 ## 3. Link nguồn — bạn điền vào, link nào dùng được sẽ lưu để crawl
 
@@ -51,7 +66,7 @@ Cột "Dùng được?" mình sẽ test & đánh dấu, rồi viết crawler ri�
 
 | Bank | Link bạn gửi | Lấy được trường gì | Dùng được? | Ngày test |
 |------|--------------|--------------------|-----------|-----------|
-| BIDV | _(chờ)_ | | | |
+| BIDV | Trang gốc SP vay nhà ở: https://bidv.com.vn/vn/ca-nhan/san-pham-dich-vu/vay-ca-nhan/vay-nhu-cau-nha-o · Trang khuyến mãi vay (lọc gói còn hạn): https://bidv.com.vn/vn/ca-nhan/khuyen-mai/khuyen-mai-vay/ | gói ưu đãi còn hạn (lãi ưu đãi %) | ⏳ chờ test parse | |
 | Vietcombank | | | | |
 | VietinBank | | | | |
 | Agribank | | | | |
@@ -63,6 +78,14 @@ Cột "Dùng được?" mình sẽ test & đánh dấu, rồi viết crawler ri�
 | Sacombank | _(chờ)_ | | | |
 | Shinhan | https://shinhan.com.vn/vi/personal/vay-the-chap-bat-dong-san.html | LTV 80%, kỳ hạn 50n (lãi: KHÔNG có số) | ⚠️ một phần | 2026-06-30 |
 | HSBC | _(chờ)_ | | | |
+
+### ⚠️ Lưu ý khác biệt nguồn (BIDV)
+- **bidv.com.vn (trang gốc)**: quảng cáo "lãi suất ưu đãi **từ 3,9%/năm**" (gói khuyến mãi) / "chỉ
+  **từ 5%/năm**" — là mức **tối thiểu, nhiều điều kiện** (teaser marketing).
+- **HouseNow (ảnh)**: BIDV **10%/12T** — mức thực vay qua môi giới.
+- Đang dùng **10% (HouseNow)** vì sát chi phí vay thực tế hơn. Nếu muốn hiển thị "từ 3,9%" thì
+  hiểu là sàn quảng cáo. Khi viết crawler BIDV: parse được "từ X%/năm" từ trang khuyến mãi (số có,
+  nhưng là mức sàn) → cân nhắc dùng làm `lai_uu_dai_san` riêng, không thay 10%.
 
 ### Đã test & KHÔNG dùng được (khỏi thử lại)
 - `thebank.vn/*`, `cafef.vn`, `24hmoney.vn`: bảng render JS / không có bảng bank+%.
