@@ -87,6 +87,33 @@ def _parse_cards(html: str) -> list[dict]:
     return out
 
 
+def _parse_featured(html: str) -> list[dict]:
+    """Card 'nổi bật' (swiper re__prj-item) — CÓ nhãn trạng thái thật (Đang/Sắp mở bán),
+    nhưng trộn toàn quốc → CHỈ giữ dự án HCM (địa chỉ chứa 'Hồ Chí Minh')."""
+    out = []
+    for m in re.finditer(r'<a class="re__prj-item[^"]*"[^>]*href="(/du-an[^"]+?-pj\d+)"(.*?)</a>',
+                         html, re.S):
+        url = "https://batdongsan.com.vn" + m.group(1)
+        inner = m.group(2)
+        nm = re.search(r'title="([^"]+)"', inner)
+        ten = unescape(nm.group(1)).strip() if nm else None
+        st = re.search(r're__prj-tag-info"?\s*>\s*<label>(.*?)</label>', inner, re.S)
+        status_txt = _txt(st.group(1)) if st else ""
+        ad = re.search(r're__prj-address[^>]*>(.*?)</div>', inner, re.S)
+        addr = _txt(ad.group(1)) if ad else ""
+        if "Hồ Chí Minh" not in addr or not ten:        # chỉ HCM
+            continue
+        code = next((c for label, c in STATUS_MAP if label in status_txt), "dang_cap_nhat")
+        quan, phuong = _quan_phuong(addr)
+        out.append({
+            "ten": ten, "trang_thai": code, "url": url, "dia_chi": addr,
+            "quan": quan, "phuong": phuong, "district_id": districts.from_addr(addr),
+            "quy_mo": None, "gia_info": None, "chu_dau_tu": None, "mo_ta": None,
+            "source": "batdongsan",
+        })
+    return out
+
+
 def crawl(pages: int = 10) -> list[dict]:
     from playwright.sync_api import sync_playwright
     seen, rows = set(), []
@@ -104,12 +131,15 @@ def crawl(pages: int = 10) -> list[dict]:
             except Exception as e:  # noqa: BLE001
                 print(f"  trang {n} lỗi: {repr(e)[:80]}")
                 continue
-            cards = [c for c in _parse_cards(html) if c["url"] not in seen]
+            page_cards = _parse_cards(html)
+            if n == 1:
+                page_cards += _parse_featured(html)   # card nổi bật chỉ ở trang 1
+            cards = [c for c in page_cards if c["url"] not in seen]
             for c in cards:
                 seen.add(c["url"])
             rows += cards
             print(f"  trang {n}: +{len(cards)} dự án (tổng {len(rows)})")
-            if not cards:
+            if not _parse_cards(html):                 # hết list chính → dừng
                 break
         b.close()
     return rows
