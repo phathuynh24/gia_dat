@@ -41,8 +41,10 @@ def loan_breakdown(gia_ty: float, ty_le_vay: float = 0.7,
     if n <= 0:
         return {"loi": "Thời hạn vay phải > 0"}
 
-    # Lãi 2 giai đoạn nếu đủ tham số; ngược lại dùng phẳng lai_suat.
-    hai_gd = lai_uu_dai is not None and lai_tha_noi is not None and uu_dai_thang > 0
+    # Lãi 2 giai đoạn nếu đủ tham số VÀ ưu đãi THẤP HƠN thả nổi. Nếu ưu đãi ≥ thả nổi
+    # (vô lý — thường do nguồn không tin cậy) thì bỏ giai đoạn ưu đãi, tính phẳng thả nổi.
+    hai_gd = (lai_uu_dai is not None and lai_tha_noi is not None and uu_dai_thang > 0
+              and float(lai_uu_dai) < float(lai_tha_noi))
     if hai_gd:
         r1 = float(lai_uu_dai) / 100 / 12
         r2 = float(lai_tha_noi) / 100 / 12
@@ -199,6 +201,7 @@ def compare_banks(gia_ty: float, thu_nhap_thang: float, ty_le_vay: float,
             "tong_lai": lb["tong_lai"],
             "duyet": (ap["ket_luan"] == "du") if ap else None,
             "lai_real": bool(b.get("lai_real")),
+            "co_uu_dai": b["lai_uu_dai"] < b["lai_tha_noi"],   # ưu đãi hợp lệ (thấp hơn thả nổi)
         })
     rows.sort(key=lambda r: (0 if r["duyet"] else 1 if r["duyet"] is False else 0,
                              r["tong_lai"]))

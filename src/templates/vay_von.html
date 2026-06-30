@@ -111,7 +111,8 @@
     {% if bank.lai_real and bank.tha_noi_uoc_tinh %}<span class="pill" style="background:#dbeafe;color:#1d4ed8;" title="Lãi thả nổi ước tính (lãi cơ sở ≈ tiết kiệm 12T)">thả nổi ước tính</span>
     {% elif bank.lai_real %}<span class="pill" style="background:#dcfce7;color:#16a34a;">lãi thả nổi thật</span>
     {% else %}<span class="pill" style="background:#fef3c7;color:#b45309;" title="Chưa cào được lãi thả nổi — mức tham khảo">tham khảo</span>{% endif %}
-    Ưu đãi <b>{{ bank.lai_uu_dai }}%/năm</b> ({{ bank.uu_dai_thang }} tháng){% if bank.lai_uu_dai_range %} <span class="muted" title="Khoảng lãi ưu đãi công bố">[{{ bank.lai_uu_dai_range }}]</span>{% endif %} → thả nổi <b>{{ bank.lai_tha_noi }}%/năm</b>
+    {% if bank.lai_uu_dai < bank.lai_tha_noi %}Ưu đãi <b>{{ bank.lai_uu_dai }}%/năm</b> ({{ bank.uu_dai_thang }} tháng){% if bank.lai_uu_dai_range %} <span class="muted" title="Khoảng lãi ưu đãi công bố">[{{ bank.lai_uu_dai_range }}]</span>{% endif %} → thả nổi <b>{{ bank.lai_tha_noi }}%/năm</b>
+    {% else %}<span title="Đã bỏ giá HouseNow vì ưu đãi cao hơn thả nổi (không hợp lý)">Không có ưu đãi tin cậy</span> → lãi áp dụng <b>{{ bank.lai_tha_noi }}%/năm</b>{% endif %}
     {% if bank.lai_real %}<span title="Lãi thả nổi = lãi tiền gửi {{ bank.ls_ky_han }} (số thật webgia) + biên độ ngân hàng">(= tiền gửi {{ bank.ls_ky_han }} {{ bank.ls_tham_chieu }}% + biên độ {{ bank.bien_do }}%)</span>{% endif %} ·
     Vay tối đa <b>{{ (bank.ltv_max*100)|int }}%</b> · Kỳ hạn tới <b>{{ bank.ky_han_max }} năm</b>
     {% if bank.an_han_goc_thang %}· Ân hạn gốc <b>{{ bank.an_han_goc_thang }} tháng</b>{% endif %}
@@ -130,6 +131,23 @@
       {% endif %}
     </span>
   </div>
+
+  {% if field_sources %}
+  <details style="margin-top:12px;">
+    <summary style="cursor:pointer; font-size:13px; color:var(--accent); font-weight:600;">ⓘ Nguồn &amp; thời điểm lấy dữ liệu từng chỉ số</summary>
+    <table style="margin-top:10px;">
+      <thead><tr><th>Chỉ số</th><th>Giá trị</th><th>Nguồn / thời điểm</th></tr></thead>
+      <tbody>
+        {% for r in field_sources %}
+        <tr><td>{{ r.f }}</td><td><b>{{ r.v }}</b></td><td class="muted">{{ r.s }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <p class="muted" style="margin-top:8px; font-size:12px;">Lãi thả nổi cào tự động (webgia.com).
+       Ưu đãi/thời hạn/LTV từ topi.vn hoặc bảng so sánh — bấm "Lấy lãi mới nhất" để cập nhật.
+       Biên độ &amp; DTI là tham khảo (ngân hàng ít công bố), nên xác nhận lại với ngân hàng.</p>
+  </details>
+  {% endif %}
 </div>
 
 {% if result and story %}
@@ -255,7 +273,7 @@
         <td><b>{{ r.ten }}</b>{% if r.rank == 1 %}<span class="badge-best">TỐT NHẤT</span>{% endif %}
             {% if r.lai_real %}<span title="Lãi thả nổi là số thật (LS tiết kiệm + biên độ)" style="color:#16a34a;">●</span>{% else %}<span title="Lãi thả nổi là mức tham khảo (webgia không có bank này)" style="color:#d97706;">○</span>{% endif %}
             {% if r.nam_bi_kep %}<br><span class="muted" style="font-size:11px;">kỳ hạn tối đa {{ r.ky_han_max }}n</span>{% endif %}</td>
-        <td>{{ r.lai_uu_dai }}% <span class="muted">/{{ r.uu_dai_thang }}th</span></td>
+        <td>{% if r.co_uu_dai %}{{ r.lai_uu_dai }}% <span class="muted">/{{ r.uu_dai_thang }}th</span>{% else %}<span class="muted" title="bỏ giá HouseNow (ưu đãi > thả nổi)">—</span>{% endif %}</td>
         <td>{{ r.lai_tha_noi }}%</td>
         <td>{{ r.tra_uu_dai }} → <b>{{ r.tra_tha_noi }}</b> tr</td>
         <td>{{ r.tong_lai }} tỷ</td>
@@ -348,9 +366,11 @@
     const rng = b.lai_uu_dai_range ? ` <span class="muted" title="Khoảng lãi ưu đãi công bố">[${b.lai_uu_dai_range}]</span>` : '';
     const ng = b.nguon_uu_dai || b.nguon;
     const ngn = ng ? ` · <span title="${ng}">nguồn: ${b.nguon_uu_dai ? 'topi.vn' : 'HouseNow'}</span>` : '';
+    const uuStr = (b.lai_uu_dai < b.lai_tha_noi)
+      ? `Ưu đãi <b>${b.lai_uu_dai}%/năm</b> (${b.uu_dai_thang} tháng)${rng} → thả nổi <b>${b.lai_tha_noi}%/năm</b>${deriv}`
+      : `<span title="Đã bỏ giá HouseNow vì ưu đãi cao hơn thả nổi (không hợp lý)">Không có ưu đãi tin cậy</span> → lãi áp dụng <b>${b.lai_tha_noi}%/năm</b>`;
     badge.innerHTML =
-      `<span class="pill">${b.ten}</span> ${realPill} ` +
-      `Ưu đãi <b>${b.lai_uu_dai}%/năm</b> (${b.uu_dai_thang} tháng)${rng} → thả nổi <b>${b.lai_tha_noi}%/năm</b>${deriv} · ` +
+      `<span class="pill">${b.ten}</span> ${realPill} ${uuStr} · ` +
       `Vay tối đa <b>${Math.round(b.ltv_max*100)}%</b> · Kỳ hạn tới <b>${b.ky_han_max} năm</b>${anhan}${ngn}`;
   }
 

@@ -377,9 +377,40 @@ def vay_von():
             "tong_tra_ratio": round(result["tong_tra"] / result["gia"], 2) if result["gia"] else 0,
         }
 
+    # Nguồn + thời điểm lấy data TỪNG chỉ số của bank đang chọn (hiển thị minh bạch lên UI)
+    field_sources = None
+    if bank and bank_key != "tu_nhap":
+        d_fetch = rates.get("fetched_at") or "?"
+        d_topi = rates.get("topi_date")
+        promo_src = (bank.get("nguon_uu_dai") or bank.get("nguon")
+                     or "tham khảo nội bộ (chưa có nguồn)")
+        flt_src = (f"webgia.com — lãi tiền gửi {bank.get('ls_ky_han','')} {bank.get('ls_tham_chieu','')}% "
+                   f"+ biên độ {bank.get('bien_do')}% · cào {d_fetch}") if bank.get("lai_real") \
+            else "tham khảo nội bộ (chưa cào được lãi thả nổi)"
+        co_uu_dai = bank["lai_uu_dai"] < bank["lai_tha_noi"]
+        field_sources = [
+            {"f": "Lãi ưu đãi (đầu kỳ)",
+             "v": (f"{bank['lai_uu_dai']}%/năm · {bank['uu_dai_thang']} tháng"
+                   if co_uu_dai else "— (bỏ giá HouseNow do cao hơn thả nổi)"),
+             "s": promo_src if co_uu_dai else "đã loại nguồn không hợp lý"},
+            {"f": "Lãi thả nổi (sau ưu đãi)",
+             "v": f"{bank['lai_tha_noi']}%/năm", "s": flt_src},
+            {"f": "Thời hạn vay tối đa",
+             "v": f"{bank['ky_han_max']} năm", "s": promo_src},
+            {"f": "Tỷ lệ vay tối đa (LTV)",
+             "v": f"{round(bank['ltv_max']*100)}%", "s": promo_src},
+            {"f": "Biên độ thả nổi",
+             "v": f"+{bank.get('bien_do','?')}%",
+             "s": "tham khảo (ảnh HouseNow / ước lượng) — chưa có nguồn realtime"},
+            {"f": "Trần trả nợ/thu nhập (DTI)",
+             "v": f"{round(bank['dti_max']*100)}%",
+             "s": "quy ước nội bộ (~60–70%, ngân hàng ít công bố)"},
+        ]
+
     can_re, re_msg = bank_rates.can_refetch()
     return render_template(
         "vay_von.html",
+        field_sources=field_sources,
         result=result,
         appraise=appraise,
         compare=compare,
