@@ -57,8 +57,12 @@ Luồng: **Crawl thủ công → Parser tiếng Việt → SQLite → Web (Flask
   - **Lãi thả nổi = LS tiết kiệm 12T (THẬT) + biên độ** từng bank. Nút **"Lấy lãi mới nhất"**
     (`POST /vay-von/refetch`) cào LS tiết kiệm thật từ **webgia.com bằng Playwright** rồi cộng
     `bien_do` → lãi thả nổi. **Guard**: `bank_rates.can_refetch()` chặn nếu đã fetch số thật
-    trong ngày (`fetched_at==today and not is_demo`). 9/12 bank khớp tên webgia; ACB/Shinhan/HSBC
-    giữ mức tham khảo. Lãi ưu đãi (campaign) luôn curated. Data: `data/bank_rates.json` (cờ `is_demo`).
+    trong ngày (`fetched_at==today and not is_demo`). **7/12 bank có trên webgia** (BIDV, VCB,
+    VietinBank, Agribank, MB, TPBank, VPBank) → cờ `lai_real=true`; **5 bank webgia KHÔNG công bố**
+    (Techcombank, ACB, Sacombank, Shinhan, HSBC) → giữ baseline `lai_tha_noi_goc` (curated), nhãn
+    "tham khảo". ⚠️ Match phải **CHÍNH XÁC** theo field `webgia` — từng dùng match lỏng `in` khiến
+    'mb' khớp 'techco(mb)ank'/'saco(mb)ank' → lấy nhầm lãi MB (đã sửa). Lãi ưu đãi (campaign) luôn
+    curated. Badge + bảng so sánh phân biệt real (●/"lãi thật") vs tham khảo (○/"tham khảo").
   - **Thẩm định vay được/không** (`finance.appraise_loan`): cần ô **thu nhập/tháng** → check
     **LTV** (vay vượt hạn mức bank?) + **DTI** (trả góp ở mức **lãi thả nổi — kịch bản xấu** ≤
     `dti_max`×thu nhập). Trả kết luận Đủ/Chưa đủ + vay tối đa được duyệt + thu nhập tối thiểu.

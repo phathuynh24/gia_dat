@@ -57,8 +57,14 @@ def fetch_savings() -> dict:
     with sync_playwright() as p:
         browser = p.chromium.launch()
         page = browser.new_page(user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
-        page.goto(WEBGIA_URL, timeout=45000, wait_until="networkidle")
-        page.wait_for_timeout(2000)
+        # 'networkidle' hay timeout vì webgia giữ kết nối (ads/analytics) → dùng
+        # 'domcontentloaded' rồi chờ bảng render xong.
+        page.goto(WEBGIA_URL, timeout=45000, wait_until="domcontentloaded")
+        try:
+            page.wait_for_selector("table tr td", timeout=15000)
+        except Exception:  # noqa: BLE001
+            pass
+        page.wait_for_timeout(1500)
         html = page.content()
         browser.close()
 
@@ -98,17 +104,20 @@ def run_fetch() -> dict:
 
     updated, failed = [], []
     for key, b in data["banks"].items():
-        wname = (b.get("webgia") or b["ten"]).lower()
-        ls12 = savings.get(wname)
-        if ls12 is None:                              # match lỏng: chứa tên
-            for k, v in savings.items():
-                if wname in k or k in wname:
-                    ls12 = v; break
+        # Match CHÍNH XÁC theo tên webgia (case-insensitive). KHÔNG match lỏng/substring —
+        # 'mb' là substring của 'techco(mb)ank'/'saco(mb)ank' → từng gây lấy nhầm lãi MB.
+        wname = (b.get("webgia") or "").strip().lower()
+        ls12 = savings.get(wname) if wname else None
         if ls12 and b.get("bien_do"):
             b["ls_tiet_kiem_12m"] = ls12
             b["lai_tha_noi"] = round(ls12 + float(b["bien_do"]), 2)
+            b["lai_real"] = True
             updated.append(b["ten"])
         else:
+            b.pop("ls_tiet_kiem_12m", None)           # xoá giá trị cũ nếu không khớp được nữa
+            if b.get("lai_tha_noi_goc") is not None:   # khôi phục lãi curated (tránh giữ số sai cũ)
+                b["lai_tha_noi"] = b["lai_tha_noi_goc"]
+            b["lai_real"] = False
             failed.append(b["ten"])
 
     if updated:

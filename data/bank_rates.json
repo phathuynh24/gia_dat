@@ -14,7 +14,9 @@
       "ky_han_max": 25,
       "dti_max": 0.6,
       "ghi_chu": "Ưu đãi 5,5%/năm 24 tháng đầu, sau thả nổi (LS tiết kiệm 12T + ~4%). Vay tối đa 85% giá trị, kỳ hạn tới 25 năm.",
-      "ls_tiet_kiem_12m": 5.9
+      "ls_tiet_kiem_12m": 5.9,
+      "lai_real": true,
+      "lai_tha_noi_goc": 10.5
     },
     "vietcombank": {
       "ten": "Vietcombank",
@@ -27,7 +29,9 @@
       "ky_han_max": 20,
       "dti_max": 0.6,
       "ghi_chu": "Ưu đãi 6,0%/năm 12 tháng đầu, sau thả nổi (LS tiết kiệm 12T + ~4%). Vay tối đa 70% giá trị.",
-      "ls_tiet_kiem_12m": 5.9
+      "ls_tiet_kiem_12m": 5.9,
+      "lai_real": true,
+      "lai_tha_noi_goc": 10.5
     },
     "vietinbank": {
       "ten": "VietinBank",
@@ -40,7 +44,9 @@
       "ky_han_max": 20,
       "dti_max": 0.6,
       "ghi_chu": "Ưu đãi 5,6%/năm 12 tháng đầu, sau thả nổi (LS tiết kiệm 12T + ~3,8%). Vay tối đa 80% giá trị.",
-      "ls_tiet_kiem_12m": 5.9
+      "ls_tiet_kiem_12m": 5.9,
+      "lai_real": true,
+      "lai_tha_noi_goc": 10.2
     },
     "agribank": {
       "ten": "Agribank",
@@ -53,20 +59,23 @@
       "ky_han_max": 20,
       "dti_max": 0.6,
       "ghi_chu": "Ưu đãi 6,5%/năm 12 tháng đầu, sau thả nổi (LS tiết kiệm 12T + ~3,8%). Vay tối đa 75% giá trị.",
-      "ls_tiet_kiem_12m": 5.9
+      "ls_tiet_kiem_12m": 5.9,
+      "lai_real": true,
+      "lai_tha_noi_goc": 10.0
     },
     "techcombank": {
       "ten": "Techcombank",
       "webgia": "Techcombank",
       "lai_uu_dai": 5.5,
       "uu_dai_thang": 12,
-      "lai_tha_noi": 9.05,
+      "lai_tha_noi": 11.0,
       "bien_do": 4.2,
       "ltv_max": 0.7,
       "ky_han_max": 25,
       "dti_max": 0.65,
       "ghi_chu": "Ưu đãi 5,5%/năm 12 tháng đầu, sau thả nổi (LS tiết kiệm 12T + ~4,2%). Vay tối đa 70%, kỳ hạn tới 25 năm.",
-      "ls_tiet_kiem_12m": 4.85
+      "lai_real": false,
+      "lai_tha_noi_goc": 11.0
     },
     "mbbank": {
       "ten": "MB Bank",
@@ -79,7 +88,9 @@
       "ky_han_max": 20,
       "dti_max": 0.6,
       "ghi_chu": "Ưu đãi 6,0%/năm 12 tháng đầu, sau thả nổi (LS tiết kiệm 12T + ~4%). Vay tối đa 75% giá trị.",
-      "ls_tiet_kiem_12m": 4.85
+      "ls_tiet_kiem_12m": 4.85,
+      "lai_real": true,
+      "lai_tha_noi_goc": 10.8
     },
     "acb": {
       "ten": "ACB",
@@ -91,20 +102,23 @@
       "ltv_max": 0.7,
       "ky_han_max": 20,
       "dti_max": 0.6,
-      "ghi_chu": "Ưu đãi 6,8%/năm 12 tháng đầu, sau thả nổi (LS tiết kiệm 12T + ~4,2%). Vay tối đa 70% giá trị."
+      "ghi_chu": "Ưu đãi 6,8%/năm 12 tháng đầu, sau thả nổi (LS tiết kiệm 12T + ~4,2%). Vay tối đa 70% giá trị.",
+      "lai_real": false,
+      "lai_tha_noi_goc": 11.0
     },
     "sacombank": {
       "ten": "Sacombank",
       "webgia": "Sacombank",
       "lai_uu_dai": 6.5,
       "uu_dai_thang": 12,
-      "lai_tha_noi": 9.35,
+      "lai_tha_noi": 11.5,
       "bien_do": 4.5,
       "ltv_max": 0.7,
       "ky_han_max": 25,
       "dti_max": 0.6,
       "ghi_chu": "Ưu đãi 6,5%/năm 12 tháng đầu, sau thả nổi (LS tiết kiệm 12T + ~4,5%). Vay tối đa 70% giá trị.",
-      "ls_tiet_kiem_12m": 4.85
+      "lai_real": false,
+      "lai_tha_noi_goc": 11.5
     },
     "tpbank": {
       "ten": "TPBank",
@@ -117,7 +131,9 @@
       "ky_han_max": 20,
       "dti_max": 0.65,
       "ghi_chu": "Ưu đãi 5,8%/năm 12 tháng đầu, sau thả nổi (LS tiết kiệm 12T + ~4,2%). Vay tối đa 70% giá trị.",
-      "ls_tiet_kiem_12m": 6.2
+      "ls_tiet_kiem_12m": 6.2,
+      "lai_real": true,
+      "lai_tha_noi_goc": 11.2
     },
     "vpbank": {
       "ten": "VPBank",
@@ -130,7 +146,9 @@
       "ky_han_max": 25,
       "dti_max": 0.65,
       "ghi_chu": "Ưu đãi 5,9%/năm chỉ 6 tháng đầu, sau thả nổi (LS tiết kiệm 12T + ~4,5%) — ưu đãi ngắn, cẩn trọng. Vay tối đa 75%.",
-      "ls_tiet_kiem_12m": 6.6
+      "ls_tiet_kiem_12m": 6.6,
+      "lai_real": true,
+      "lai_tha_noi_goc": 11.8
     },
     "shinhan": {
       "ten": "Shinhan Bank",
@@ -142,7 +160,9 @@
       "ltv_max": 0.7,
       "ky_han_max": 30,
       "dti_max": 0.6,
-      "ghi_chu": "Ưu đãi 6,3%/năm 12 tháng đầu, sau thả nổi (LS tiết kiệm 12T + ~3,5%, thấp). Kỳ hạn tới 30 năm — trả tháng nhẹ."
+      "ghi_chu": "Ưu đãi 6,3%/năm 12 tháng đầu, sau thả nổi (LS tiết kiệm 12T + ~3,5%, thấp). Kỳ hạn tới 30 năm — trả tháng nhẹ.",
+      "lai_real": false,
+      "lai_tha_noi_goc": 9.9
     },
     "hsbc": {
       "ten": "HSBC",
@@ -154,7 +174,9 @@
       "ltv_max": 0.7,
       "ky_han_max": 25,
       "dti_max": 0.6,
-      "ghi_chu": "Ưu đãi 6,5%/năm 24 tháng đầu, sau thả nổi (LS tiết kiệm 12T + ~3,5%, thấp nhất nhóm). Vay tối đa 70%."
+      "ghi_chu": "Ưu đãi 6,5%/năm 24 tháng đầu, sau thả nổi (LS tiết kiệm 12T + ~3,5%, thấp nhất nhóm). Vay tối đa 70%.",
+      "lai_real": false,
+      "lai_tha_noi_goc": 9.75
     }
   }
 }

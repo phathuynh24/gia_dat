@@ -198,6 +198,7 @@ def compare_banks(gia_ty: float, thu_nhap_thang: float, ty_le_vay: float,
             "tra_uu_dai": lb["tra_thang_uu_dai"], "tra_tha_noi": lb["tra_thang_tha_noi"],
             "tong_lai": lb["tong_lai"],
             "duyet": (ap["ket_luan"] == "du") if ap else None,
+            "lai_real": bool(b.get("lai_real")),
         })
     rows.sort(key=lambda r: (0 if r["duyet"] else 1 if r["duyet"] is False else 0,
                              r["tong_lai"]))

@@ -108,9 +108,10 @@
   {% if bank and bank_key != 'tu_nhap' %}
   <div class="rate-badge">
     <span class="pill">{{ bank.ten }}</span>
-    {% if bank.ls_tiet_kiem_12m %}<span class="pill" style="background:#dcfce7;color:#16a34a;">lãi thật</span>{% endif %}
+    {% if bank.lai_real %}<span class="pill" style="background:#dcfce7;color:#16a34a;">lãi thật</span>
+    {% else %}<span class="pill" style="background:#fef3c7;color:#b45309;" title="webgia.com không công bố LS tiết kiệm của ngân hàng này nên lãi thả nổi là mức tham khảo (không cào được)">tham khảo</span>{% endif %}
     Ưu đãi <b>{{ bank.lai_uu_dai }}%/năm</b> ({{ bank.uu_dai_thang }} tháng) → thả nổi <b>{{ bank.lai_tha_noi }}%/năm</b>
-    {% if bank.ls_tiet_kiem_12m %}<span title="Lãi thả nổi = LS tiết kiệm 12 tháng (số thật) + biên độ ngân hàng">(= tiết kiệm 12T {{ bank.ls_tiet_kiem_12m }}% + biên độ {{ bank.bien_do }}%)</span>{% endif %} ·
+    {% if bank.lai_real %}<span title="Lãi thả nổi = LS tiết kiệm 12 tháng (số thật) + biên độ ngân hàng">(= tiết kiệm 12T {{ bank.ls_tiet_kiem_12m }}% + biên độ {{ bank.bien_do }}%)</span>{% endif %} ·
     Vay tối đa <b>{{ (bank.ltv_max*100)|int }}%</b> · Kỳ hạn tới <b>{{ bank.ky_han_max }} năm</b>
     {% if rates_meta.fetched_at %}· <span title="{{ rates_meta.source }}">cập nhật {{ rates_meta.fetched_at }}</span>{% endif %}
   </div>
@@ -244,6 +245,7 @@
       <tr class="{% if r.rank == 1 %}best{% endif %}">
         <td class="rank">{{ r.rank }}</td>
         <td><b>{{ r.ten }}</b>{% if r.rank == 1 %}<span class="badge-best">TỐT NHẤT</span>{% endif %}
+            {% if r.lai_real %}<span title="Lãi thả nổi là số thật (LS tiết kiệm + biên độ)" style="color:#16a34a;">●</span>{% else %}<span title="Lãi thả nổi là mức tham khảo (webgia không có bank này)" style="color:#d97706;">○</span>{% endif %}
             {% if r.nam_bi_kep %}<br><span class="muted" style="font-size:11px;">kỳ hạn tối đa {{ r.ky_han_max }}n</span>{% endif %}</td>
         <td>{{ r.lai_uu_dai }}% <span class="muted">/{{ r.uu_dai_thang }}th</span></td>
         <td>{{ r.lai_tha_noi }}%</td>
