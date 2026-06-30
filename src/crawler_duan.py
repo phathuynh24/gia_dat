@@ -23,7 +23,16 @@ sys.path.insert(0, os.path.dirname(__file__))
 import db  # noqa: E402
 import districts  # noqa: E402
 
-BASE = "https://batdongsan.com.vn/du-an-can-ho-chung-cu-tp-hcm"
+BASE = "https://batdongsan.com.vn/du-an-can-ho-chung-cu-{slug}"
+
+# Tỉnh/TP crawl được (slug batdongsan → tên hiển thị + keyword nhận diện trong địa chỉ).
+PROVINCES = {
+    "tp-hcm": ("Hồ Chí Minh", ["Hồ Chí Minh"]),
+    "binh-duong": ("Bình Dương", ["Bình Dương"]),
+    "ba-ria-vung-tau": ("Bà Rịa - Vũng Tàu", ["Vũng Tàu", "Bà Rịa"]),
+    "dong-nai": ("Đồng Nai", ["Đồng Nai"]),
+    "long-an": ("Long An", ["Long An"]),
+}
 
 STATUS_MAP = [
     ("Đang mở bán", "dang_mo_ban"),
@@ -37,17 +46,17 @@ def _txt(s: str) -> str:
     return unescape(re.sub(r"<[^>]+>", " ", s or "")).strip()
 
 
-def _quan_phuong(addr: str):
-    """Trích quận + phường từ địa chỉ '..., Phường X, Quận Y, Hồ Chí Minh'."""
-    quan = phuong = None
-    mq = re.search(r"(Quận\s+[\w\d]+|Huyện\s+[\wÀ-ỹ\s]+?|TP\.?\s*Thủ Đức|Thành phố Thủ Đức)\s*,",
-                   addr)
-    if mq:
-        quan = re.sub(r"\s+", " ", mq.group(1)).strip()
-    mp = re.search(r"(Phường\s+[\w\d]+|Xã\s+[\wÀ-ỹ\s]+?|Thị trấn\s+[\wÀ-ỹ\s]+?)\s*,", addr)
-    if mp:
-        phuong = re.sub(r"\s+", " ", mp.group(1)).strip()
-    return quan, phuong
+def _addr_parse(addr: str):
+    """Tách địa chỉ '..., Phường Y, Quận Z, Tỉnh' → (quan, phuong, tinh) — đa tỉnh.
+    Quy ước batdongsan: phần cuối = tỉnh/TP, kế cuối = quận/huyện/thành phố."""
+    parts = [re.sub(r"\s+", " ", p).strip() for p in (addr or "").split(",") if p.strip()]
+    if not parts:
+        return None, None, None
+    tinh = parts[-1]
+    quan = parts[-2] if len(parts) >= 2 else None
+    phuong = next((p for p in parts
+                   if re.match(r"(Phường|Xã|Thị trấn)\s", p)), None)
+    return quan, phuong, tinh
 
 
 def _parse_cards(html: str) -> list[dict]:
@@ -70,15 +79,15 @@ def _parse_cards(html: str) -> list[dict]:
         # địa chỉ nằm trong title của div location: <div class="re__prj-card-location" title="...">
         ma = re.search(r're__prj-card-location"[^>]*title="([^"]+)"', ch)
         if not ma:
-            ma = re.search(r'>\s*([^<>]*?(?:Quận|Huyện|Xã)[^<>]*?Hồ Chí Minh)\s*<', ch)
+            ma = re.search(r'>\s*([^<>]*?(?:Quận|Huyện|Xã|Thành phố)[^<>]*?(?:Hồ Chí Minh|Bình Dương|Vũng Tàu|Đồng Nai|Long An))\s*<', ch)
         addr = unescape(ma.group(1)).strip() if ma else None
-        quan, phuong = _quan_phuong(addr or "")
+        quan, phuong, tinh = _addr_parse(addr or "")
         # quy mô: các re__prj-card-config-value
         cfg = [_txt(x) for x in re.findall(r"re__prj-card-config-value[^>]*>(.*?)</", ch, re.S)]
         cfg = [c for c in cfg if c][:4]
         out.append({
             "ten": ten, "trang_thai": status, "url": url,
-            "dia_chi": addr, "quan": quan, "phuong": phuong,
+            "dia_chi": addr, "quan": quan, "phuong": phuong, "tinh": tinh,
             "district_id": districts.from_addr(addr),
             "quy_mo": " · ".join(cfg) or None,
             "gia_info": None, "chu_dau_tu": None, "mo_ta": None,
@@ -87,9 +96,9 @@ def _parse_cards(html: str) -> list[dict]:
     return out
 
 
-def _parse_featured(html: str) -> list[dict]:
+def _parse_featured(html: str, keywords: list) -> list[dict]:
     """Card 'nổi bật' (swiper re__prj-item) — CÓ nhãn trạng thái thật (Đang/Sắp mở bán),
-    nhưng trộn toàn quốc → CHỈ giữ dự án HCM (địa chỉ chứa 'Hồ Chí Minh')."""
+    nhưng trộn toàn quốc → CHỈ giữ dự án thuộc tỉnh đang crawl (địa chỉ chứa keyword)."""
     out = []
     for m in re.finditer(r'<a class="re__prj-item[^"]*"[^>]*href="(/du-an[^"]+?-pj\d+)"(.*?)</a>',
                          html, re.S):
@@ -101,56 +110,83 @@ def _parse_featured(html: str) -> list[dict]:
         status_txt = _txt(st.group(1)) if st else ""
         ad = re.search(r're__prj-address[^>]*>(.*?)</div>', inner, re.S)
         addr = _txt(ad.group(1)) if ad else ""
-        if "Hồ Chí Minh" not in addr or not ten:        # chỉ HCM
+        if not ten or not any(k in addr for k in keywords):
             continue
         code = next((c for label, c in STATUS_MAP if label in status_txt), "dang_cap_nhat")
-        quan, phuong = _quan_phuong(addr)
+        quan, phuong, tinh = _addr_parse(addr)
         out.append({
             "ten": ten, "trang_thai": code, "url": url, "dia_chi": addr,
-            "quan": quan, "phuong": phuong, "district_id": districts.from_addr(addr),
+            "quan": quan, "phuong": phuong, "tinh": tinh,
+            "district_id": districts.from_addr(addr),
             "quy_mo": None, "gia_info": None, "chu_dau_tu": None, "mo_ta": None,
             "source": "batdongsan",
         })
     return out
 
 
-def crawl(pages: int = 10) -> list[dict]:
+def _load(pg, url: str) -> str:
+    """Mở trang + cuộn cho lazy-load. Retry nếu dính Cloudflare / card chưa render."""
+    for attempt in range(4):
+        pg.goto(url, timeout=45000, wait_until="domcontentloaded")
+        pg.wait_for_timeout(3000)
+        if "Just a moment" in (pg.title() or ""):   # Cloudflare → chờ giải rồi thử lại
+            pg.wait_for_timeout(5000)
+            continue
+        try:
+            pg.wait_for_selector(".re__prj-card-full", timeout=12000)
+            break
+        except Exception:                            # card chưa render → thử lại
+            if attempt == 3:
+                break
+    for _ in range(12):
+        pg.mouse.wheel(0, 5000)
+        pg.wait_for_timeout(600)
+    return pg.content()
+
+
+def crawl(provinces: list | None = None, pages: int = 5) -> list[dict]:
     from playwright.sync_api import sync_playwright
+    provinces = provinces or list(PROVINCES)
     seen, rows = set(), []
     with sync_playwright() as p:
         b = p.chromium.launch()
         pg = b.new_page(user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
-        for n in range(1, pages + 1):
-            url = BASE if n == 1 else f"{BASE}/p{n}"
-            try:
-                pg.goto(url, timeout=45000, wait_until="domcontentloaded")
-                for _ in range(10):
-                    pg.mouse.wheel(0, 5000)
-                    pg.wait_for_timeout(700)
-                html = pg.content()
-            except Exception as e:  # noqa: BLE001
-                print(f"  trang {n} lỗi: {repr(e)[:80]}")
-                continue
-            page_cards = _parse_cards(html)
-            if n == 1:
-                page_cards += _parse_featured(html)   # card nổi bật chỉ ở trang 1
-            cards = [c for c in page_cards if c["url"] not in seen]
-            for c in cards:
-                seen.add(c["url"])
-            rows += cards
-            print(f"  trang {n}: +{len(cards)} dự án (tổng {len(rows)})")
-            if not _parse_cards(html):                 # hết list chính → dừng
-                break
+        for slug in provinces:
+            ten_tinh, keywords = PROVINCES.get(slug, (slug, [slug]))
+            print(f"[{ten_tinh}]")
+            base = BASE.format(slug=slug)
+            for n in range(1, pages + 1):
+                url = base if n == 1 else f"{base}/p{n}"
+                try:
+                    html = _load(pg, url)
+                except Exception as e:  # noqa: BLE001
+                    print(f"  trang {n} lỗi: {repr(e)[:70]}"); continue
+                page_cards = _parse_cards(html)
+                if n == 1:
+                    page_cards += _parse_featured(html, keywords)
+                # ép tỉnh hiển thị về tên chuẩn (địa chỉ có thể ghi 'Tỉnh Bình Dương'...)
+                for c in page_cards:
+                    if not c.get("tinh") or any(k in (c["tinh"] or "") for k in keywords):
+                        c["tinh"] = ten_tinh
+                cards = [c for c in page_cards if c["url"] not in seen]
+                for c in cards:
+                    seen.add(c["url"])
+                rows += cards
+                print(f"  trang {n}: +{len(cards)} (tổng {len(rows)})")
+                if not _parse_cards(html):
+                    break
         b.close()
     return rows
 
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--pages", type=int, default=10)
+    ap.add_argument("--pages", type=int, default=5)
+    ap.add_argument("--provinces", nargs="*", default=None,
+                    help=f"slug tỉnh (mặc định tất cả: {', '.join(PROVINCES)})")
     args = ap.parse_args()
     db.init_db()
-    rows = crawl(args.pages)
+    rows = crawl(args.provinces, args.pages)
     today = datetime.date.today().isoformat()
     for r in rows:
         r["fetched_at"] = today

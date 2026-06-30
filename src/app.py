@@ -313,15 +313,15 @@ def trung_lap():
 
 @app.route("/du-an")
 def du_an():
-    """Danh mục dự án chung cư SƠ CẤP (đang/sắp mở bán) — mua trực tiếp từ CĐT."""
-    quan = request.args.get("quan_du_an") or None
-    projects = db.list_projects(quan=quan)
+    """Danh mục dự án chung cư SƠ CẤP (đang/sắp mở bán) — mua trực tiếp từ CĐT. Đa tỉnh."""
+    tinh = request.args.get("tinh") or None
+    projects = db.list_projects(tinh=tinh)
     return render_template(
         "du_an.html",
         projects=projects,
         trang_thai_label=db.TRANG_THAI_DA,
-        quan_list=db.project_quan_list(),
-        sel_quan=quan,
+        tinh_counts=db.project_tinh_counts(),
+        sel_tinh=tinh,
         status_counts=db.project_status_counts(),
     )
 

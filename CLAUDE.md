@@ -93,13 +93,19 @@ Luồng: **Crawl thủ công → Parser tiếng Việt → SQLite → Web (Flask
   - Bubble map (cũ /heatmap): KHÔNG dùng tile/geocoding ngoài; Chart.js bubble tại centroid phường
     (`src/geo.py`, xấp xỉ), màu xanh→đỏ theo giá/m², size theo số tin.
 - **Trang `/du-an`** (Dự án mở bán — sơ cấp): danh mục dự án chung cư **đang/sắp mở bán** để
-  mua trực tiếp từ CĐT (giá tốt hơn thứ cấp). Bảng `projects` (khác `listings`), nạp bằng
-  `crawler_duan.py` (Playwright, batdongsan mục dự án, toàn HCM). Lọc theo quận; loại "đã bàn giao".
-  ⚠️ batdongsan để **đa số dự án HCM trạng thái "đang cập nhật"** (ít gắn nhãn sắp/đang mở bán) →
-  `list_projects` mặc định gồm cả `dang_cap_nhat`. Card nổi bật (sắp/đang mở bán) là TOÀN QUỐC →
-  đã loại (chỉ lấy list chính `re__prj-card-full`). Trang chính ~10 dự án, KHÔNG có phân trang `/pN`.
-  Giá/CĐT thường ở trang chi tiết (card chỉ có tên/trạng thái/địa chỉ/quy mô) → link ra batdongsan.
-  `db.upsert_projects` dedupe theo url. Nav tab riêng "Dự án mở bán".
+  mua trực tiếp từ CĐT (giá tốt hơn thứ cấp). Bảng `projects` (khác `listings`, có cột `tinh`),
+  nạp bằng `crawler_duan.py` (Playwright, batdongsan mục dự án). **ĐA TỈNH**: `PROVINCES` =
+  HCM, Bình Dương, Bà Rịa-Vũng Tàu, Đồng Nai, Long An (chạy `--provinces <slug...>`).
+  Trang có **tab theo tỉnh** (`db.project_tinh_counts`). Hiện ~30 dự án (BD 11, HCM 10, VT 9;
+  9 đang + 4 sắp mở bán).
+  - Lấy 2 loại card: **list chính** (`re__prj-card-full`, theo tỉnh, đa số "đang cập nhật") +
+    **card nổi bật** (`re__prj-item`, CÓ trạng thái thật, lọc theo keyword tỉnh trong địa chỉ).
+  - Địa chỉ parse bằng comma-split: phần cuối = tỉnh, kế cuối = quận/TP (`_addr_parse`).
+  - ⚠️ batdongsan đa số "đang cập nhật" → `list_projects` mặc định gồm `dang_cap_nhat`, loại "đã bàn giao".
+  - ⚠️ **Cloudflare "Just a moment" chập chờn** chặn vài tỉnh → `_load` chờ selector card + retry 4 lần;
+    tỉnh nào ra 0 thì chạy lại `--provinces <tỉnh đó>` (Long An/Đồng Nai hay cần retry).
+  - Giá/CĐT ở trang chi tiết (card chỉ có tên/trạng thái/địa chỉ/quy mô) → link ra batdongsan.
+    `db.upsert_projects` dedupe theo url. Nav tab riêng "Dự án mở bán".
 - **Đồng bộ loại BĐS toàn app**: `loai_bds` **sticky qua session** (giống quận) — chọn ở tab nào
   thì mọi tab giữ nguyên. Mặc định **`chung_cu`** (đứng đầu `LOAI_BDS_LABEL`), rồi nhà riêng, đất nền.
 - **Bản đồ vị trí TỪNG tin** (dashboard, cột "Vị trí"): nút `📍 Bản đồ` mỗi dòng → bung hàng

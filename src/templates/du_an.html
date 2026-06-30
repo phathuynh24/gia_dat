@@ -30,24 +30,22 @@
   Bấm vào từng dự án để xem chi tiết giá &amp; tiến độ trên batdongsan.
 </div>
 
+<div class="tabs">
+  <a class="tab {% if not sel_tinh %}active{% endif %}" href="/du-an">Tất cả
+    <span class="badge">{{ tinh_counts.values()|sum }}</span></a>
+  {% for t, c in tinh_counts.items() %}
+  <a class="tab {% if sel_tinh == t %}active{% endif %}" href="/du-an?tinh={{ t|urlencode }}">{{ t }}
+    <span class="badge">{{ c }}</span></a>
+  {% endfor %}
+</div>
+
 <div class="card">
-  <form method="get" class="filterbar" style="margin:0;">
-    <div>
-      <label>Lọc theo quận</label>
-      <select name="quan_du_an" onchange="this.form.submit()" style="width:auto;">
-        <option value="">Tất cả ({{ projects|length }})</option>
-        {% for q in quan_list %}
-        <option value="{{ q }}" {% if sel_quan == q %}selected{% endif %}>{{ q }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <span class="muted" style="align-self:center;">
-      Nguồn: batdongsan (mục dự án). Trạng thái:
-      🟢 đang mở bán {{ status_counts.get('dang_mo_ban', 0) }} ·
-      🟡 sắp mở bán {{ status_counts.get('sap_mo_ban', 0) }} ·
-      ⚪ đang cập nhật {{ status_counts.get('dang_cap_nhat', 0) }}
-    </span>
-  </form>
+  <span class="muted">
+    Nguồn: batdongsan (mục dự án) · {{ projects|length }} dự án. Trạng thái:
+    🟢 đang mở bán {{ status_counts.get('dang_mo_ban', 0) }} ·
+    🟡 sắp mở bán {{ status_counts.get('sap_mo_ban', 0) }} ·
+    ⚪ đang cập nhật {{ status_counts.get('dang_cap_nhat', 0) }}
+  </span>
 </div>
 
 {% if not projects %}
