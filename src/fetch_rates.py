@@ -86,6 +86,68 @@ def fetch_savings() -> dict:
     return out
 
 
+TOPI_URL = "https://topi.vn/lai-suat-vay-mua-nha.html"
+
+
+def _topi_num(s: str):
+    m = re.search(r"\d{1,3}(?:[.,]\d{1,2})?", (s or "").replace(",", "."))
+    return float(m.group()) if m else None
+
+
+def _topi_thang(s: str):
+    """'24 tháng' → 24; '3 - 12 tháng' → 12 (lấy max); '5 năm' → 60; '-' → None."""
+    if not s or s.strip() in ("-", ""):
+        return None
+    nums = [int(float(x)) for x in re.findall(r"\d{1,3}", s)]
+    if not nums:
+        return None
+    v = max(nums)
+    return v * 12 if "năm" in s.lower() else v
+
+
+def fetch_topi() -> dict:
+    """
+    Cào bảng 'Lãi suất ưu đãi' topi.vn (render Playwright). Trả {name_lower: {...}}:
+    lai_uu_dai (sàn của range 'Từ X - Y%'), uu_dai_thang, ky_han_max (năm),
+    ltv (chỉ nhận khi text nói '% giá trị' để tránh '% nhu cầu vốn' gây hiểu nhầm), range, date.
+    """
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as p:
+        br = p.chromium.launch()
+        pg = br.new_page(user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
+        pg.goto(TOPI_URL, timeout=45000, wait_until="domcontentloaded")
+        try:
+            pg.wait_for_selector("table tr td", timeout=15000)
+        except Exception:  # noqa: BLE001
+            pass
+        pg.wait_for_timeout(1500)
+        html = pg.content()
+        br.close()
+
+    dm = re.search(r"tháng\s*(\d{1,2})[/](20\d\d)", html)
+    date = f"{dm.group(2)}-{int(dm.group(1)):02d}" if dm else None
+
+    out: dict[str, dict] = {"_date": date}
+    for tb in re.findall(r"<table[^>]*>.*?</table>", html, re.S):
+        if "ưu đãi" not in tb.lower():
+            continue
+        for tr in re.findall(r"<tr[^>]*>.*?</tr>", tb, re.S):
+            c = [unescape(re.sub(r"<[^>]+>", "", x)).strip()
+                 for x in re.findall(r"<td[^>]*>.*?</td>", tr, re.S)]
+            if len(c) < 5 or _topi_num(c[1]) is None:
+                continue
+            ltv = _topi_num(c[4])
+            ltv_ok = ltv and "giá trị" in c[4].lower()      # bỏ '% nhu cầu vốn' (mơ hồ)
+            out[c[0].lower()] = {
+                "lai_uu_dai": _topi_num(c[1]),
+                "range": re.sub(r"\s+", " ", c[1]),
+                "uu_dai_thang": _topi_thang(c[2]),
+                "ky_han_max": int(_topi_num(c[3])) if _topi_num(c[3]) else None,
+                "ltv": min(ltv, 85) / 100 if ltv_ok else None,
+            }
+    return out
+
+
 def run_fetch() -> dict:
     """Cào LS tiết kiệm thật → cập nhật lãi thả nổi mỗi bank. Fail-safe (không raise)."""
     data = load()
@@ -128,14 +190,43 @@ def run_fetch() -> dict:
             b["lai_real"] = False
             failed.append(b["ten"])
 
-    if updated:
+    # --- Lãi ƯU ĐÃI + thời hạn + LTV từ topi.vn (cho bank tư nhân topi có liệt kê) ---
+    topi_updated = []
+    try:
+        topi = fetch_topi()
+    except Exception:  # noqa: BLE001  — topi lỗi không được làm hỏng phần webgia
+        topi = {}
+    topi_date = topi.get("_date")
+    for key, b in data["banks"].items():
+        tname = (b.get("topi") or "").strip().lower()
+        trow = topi.get(tname) if tname else None
+        if not trow:
+            continue
+        if trow.get("lai_uu_dai"):
+            b["lai_uu_dai"] = trow["lai_uu_dai"]
+            b["lai_uu_dai_range"] = trow.get("range")
+        if trow.get("uu_dai_thang"):
+            b["uu_dai_thang"] = trow["uu_dai_thang"]
+        if trow.get("ky_han_max"):
+            b["ky_han_max"] = trow["ky_han_max"]
+        if trow.get("ltv"):
+            b["ltv_max"] = trow["ltv"]
+        b["uu_dai_real"] = True
+        b["nguon_uu_dai"] = f"topi.vn (T{topi_date})" if topi_date else "topi.vn"
+        # topi cũng cho thời hạn/LTV → bỏ nhãn 'HouseNow' cũ nếu có
+        b.pop("nguon", None)
+        topi_updated.append(b["ten"])
+
+    if updated or topi_updated:
         data["fetched_at"] = today
         data["is_demo"] = False
-        data["source"] = (f"Lãi thả nổi = LS tiết kiệm 12T (webgia.com, cào {today}) "
-                          f"+ biên độ. Lãi ưu đãi là mức tham khảo (campaign).")
+        data["topi_date"] = topi_date
+        data["source"] = (f"Lãi thả nổi = LS tiền gửi (webgia.com) + biên độ; "
+                          f"lãi ưu đãi/thời hạn/LTV từ topi.vn (T{topi_date}). Cào {today}.")
         save(data)
-    return {"ok": bool(updated), "updated": updated, "failed": failed,
-            "fetched_at": data.get("fetched_at")}
+    return {"ok": bool(updated or topi_updated), "updated": updated,
+            "topi_updated": topi_updated, "failed": failed,
+            "fetched_at": data.get("fetched_at"), "topi_date": topi_date}
 
 
 def main() -> None:
@@ -144,9 +235,9 @@ def main() -> None:
         return
     res = run_fetch()
     if res["ok"]:
-        print(f"✓ Cập nhật lãi thả nổi (từ LS tiết kiệm thật): {', '.join(res['updated'])}")
-        if res["failed"]:
-            print(f"  (không khớp tên trên webgia: {', '.join(res['failed'])})")
+        print(f"✓ Lãi thả nổi (webgia, tiền gửi+biên độ): {', '.join(res['updated']) or '—'}")
+        print(f"✓ Ưu đãi/thời hạn/LTV (topi.vn T{res.get('topi_date')}): "
+              f"{', '.join(res.get('topi_updated', [])) or '—'}")
         print(f"Đã ghi {PATH}")
     else:
         print("Không cào được:", res.get("err", "không rõ"))

@@ -111,11 +111,11 @@
     {% if bank.lai_real and bank.tha_noi_uoc_tinh %}<span class="pill" style="background:#dbeafe;color:#1d4ed8;" title="Lãi thả nổi ước tính (lãi cơ sở ≈ tiết kiệm 12T)">thả nổi ước tính</span>
     {% elif bank.lai_real %}<span class="pill" style="background:#dcfce7;color:#16a34a;">lãi thả nổi thật</span>
     {% else %}<span class="pill" style="background:#fef3c7;color:#b45309;" title="Chưa cào được lãi thả nổi — mức tham khảo">tham khảo</span>{% endif %}
-    Ưu đãi <b>{{ bank.lai_uu_dai }}%/năm</b> ({{ bank.uu_dai_thang }} tháng) → thả nổi <b>{{ bank.lai_tha_noi }}%/năm</b>
+    Ưu đãi <b>{{ bank.lai_uu_dai }}%/năm</b> ({{ bank.uu_dai_thang }} tháng){% if bank.lai_uu_dai_range %} <span class="muted" title="Khoảng lãi ưu đãi công bố">[{{ bank.lai_uu_dai_range }}]</span>{% endif %} → thả nổi <b>{{ bank.lai_tha_noi }}%/năm</b>
     {% if bank.lai_real %}<span title="Lãi thả nổi = lãi tiền gửi {{ bank.ls_ky_han }} (số thật webgia) + biên độ ngân hàng">(= tiền gửi {{ bank.ls_ky_han }} {{ bank.ls_tham_chieu }}% + biên độ {{ bank.bien_do }}%)</span>{% endif %} ·
     Vay tối đa <b>{{ (bank.ltv_max*100)|int }}%</b> · Kỳ hạn tới <b>{{ bank.ky_han_max }} năm</b>
     {% if bank.an_han_goc_thang %}· Ân hạn gốc <b>{{ bank.an_han_goc_thang }} tháng</b>{% endif %}
-    {% if bank.nguon %}· <span title="{{ bank.nguon }}">nguồn: HouseNow</span>{% endif %}
+    {% set ng = bank.nguon_uu_dai or bank.nguon %}{% if ng %}· <span title="{{ ng }}">nguồn: {{ 'topi.vn' if bank.nguon_uu_dai else 'HouseNow' }}</span>{% endif %}
   </div>
   {% endif %}
 
@@ -345,10 +345,12 @@
     const deriv = b.lai_real
       ? ` <span title="Lãi thả nổi = lãi tiền gửi ${b.ls_ky_han} (thật) + biên độ">(= tiền gửi ${b.ls_ky_han} ${b.ls_tham_chieu}% + biên độ ${b.bien_do}%)</span>` : '';
     const anhan = b.an_han_goc_thang ? ` · Ân hạn gốc <b>${b.an_han_goc_thang} tháng</b>` : '';
-    const ngn = b.nguon ? ` · nguồn: HouseNow` : '';
+    const rng = b.lai_uu_dai_range ? ` <span class="muted" title="Khoảng lãi ưu đãi công bố">[${b.lai_uu_dai_range}]</span>` : '';
+    const ng = b.nguon_uu_dai || b.nguon;
+    const ngn = ng ? ` · <span title="${ng}">nguồn: ${b.nguon_uu_dai ? 'topi.vn' : 'HouseNow'}</span>` : '';
     badge.innerHTML =
       `<span class="pill">${b.ten}</span> ${realPill} ` +
-      `Ưu đãi <b>${b.lai_uu_dai}%/năm</b> (${b.uu_dai_thang} tháng) → thả nổi <b>${b.lai_tha_noi}%/năm</b>${deriv} · ` +
+      `Ưu đãi <b>${b.lai_uu_dai}%/năm</b> (${b.uu_dai_thang} tháng)${rng} → thả nổi <b>${b.lai_tha_noi}%/năm</b>${deriv} · ` +
       `Vay tối đa <b>${Math.round(b.ltv_max*100)}%</b> · Kỳ hạn tới <b>${b.ky_han_max} năm</b>${anhan}${ngn}`;
   }
 

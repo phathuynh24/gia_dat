@@ -1,6 +1,6 @@
 {
-  "fetched_at": "2026-06-30",
-  "source": "Lãi thả nổi = LS tiết kiệm 12T (webgia.com, cào 2026-06-30) + biên độ. Lãi ưu đãi là mức tham khảo (campaign).",
+  "fetched_at": "2026-07-01",
+  "source": "Lãi thả nổi = LS tiền gửi (webgia.com) + biên độ; lãi ưu đãi/thời hạn/LTV từ topi.vn (T2026-03). Cào 2026-07-01.",
   "is_demo": false,
   "banks": {
     "bidv": {
@@ -86,21 +86,25 @@
     "techcombank": {
       "ten": "Techcombank",
       "webgia": "Techcombank",
-      "lai_uu_dai": 5.5,
-      "uu_dai_thang": 12,
+      "lai_uu_dai": 5.99,
+      "uu_dai_thang": 24,
       "lai_tha_noi": 11.0,
       "bien_do": 4.2,
       "ltv_max": 0.7,
-      "ky_han_max": 25,
+      "ky_han_max": 35,
       "dti_max": 0.65,
       "ghi_chu": "Ưu đãi 5,5%/năm 12 tháng đầu, sau thả nổi (LS tiết kiệm 12T + ~4,2%). Vay tối đa 70%, kỳ hạn tới 25 năm.",
       "lai_real": false,
-      "lai_tha_noi_goc": 11.0
+      "lai_tha_noi_goc": 11.0,
+      "topi": "Techcombank",
+      "lai_uu_dai_range": "Từ 5.99 - 12.99%/năm",
+      "uu_dai_real": true,
+      "nguon_uu_dai": "topi.vn (T2026-03)"
     },
     "mbbank": {
       "ten": "MB Bank",
       "webgia": "MB",
-      "lai_uu_dai": 9.9,
+      "lai_uu_dai": 6.0,
       "uu_dai_thang": 12,
       "lai_tha_noi": 10.8,
       "bien_do": 3.5,
@@ -113,17 +117,20 @@
       "ky_han_tham_chieu": "co_so",
       "an_han_goc_thang": 24,
       "phi_tra_truoc": "Năm 1-5: 1%-2,5%; năm 6: miễn phí",
-      "nguon": "HouseNow (so sánh lãi vay BĐS, ảnh user cung cấp 2026-06)"
+      "topi": "MB Bank",
+      "lai_uu_dai_range": "Từ 6 - 9.5%/năm",
+      "uu_dai_real": true,
+      "nguon_uu_dai": "topi.vn (T2026-03)"
     },
     "acb": {
       "ten": "ACB",
       "webgia": "ACB",
-      "lai_uu_dai": 11.0,
+      "lai_uu_dai": 6.9,
       "uu_dai_thang": 12,
       "lai_tha_noi": 11.0,
       "bien_do": 3.5,
-      "ltv_max": 0.8,
-      "ky_han_max": 30,
+      "ltv_max": 0.85,
+      "ky_han_max": 15,
       "dti_max": 0.6,
       "ghi_chu": "Ưu đãi 11.0%/năm cố định 12 tháng → thả nổi = lãi cơ sở (≈ tiết kiệm 12T, ước tính) + biên độ 3.5%. Vay tối đa 80%, kỳ hạn tới 30 năm.",
       "lai_real": false,
@@ -131,43 +138,54 @@
       "ky_han_tham_chieu": "co_so",
       "an_han_goc_thang": 0,
       "phi_tra_truoc": "Miễn phí nếu trả trước <100tr/lần và tối đa 1,2 tỷ/năm",
-      "nguon": "HouseNow (so sánh lãi vay BĐS, ảnh user cung cấp 2026-06)"
+      "topi": "ACB",
+      "lai_uu_dai_range": "6.9 - 12%/năm",
+      "uu_dai_real": true,
+      "nguon_uu_dai": "topi.vn (T2026-03)"
     },
     "sacombank": {
       "ten": "Sacombank",
       "webgia": "Sacombank",
-      "lai_uu_dai": 6.5,
+      "lai_uu_dai": 7.49,
       "uu_dai_thang": 12,
       "lai_tha_noi": 11.5,
       "bien_do": 4.5,
       "ltv_max": 0.7,
-      "ky_han_max": 25,
+      "ky_han_max": 30,
       "dti_max": 0.6,
       "ghi_chu": "Ưu đãi 6,5%/năm 12 tháng đầu, sau thả nổi (LS tiết kiệm 12T + ~4,5%). Vay tối đa 70% giá trị.",
       "lai_real": false,
-      "lai_tha_noi_goc": 11.5
+      "lai_tha_noi_goc": 11.5,
+      "topi": "Sacombank",
+      "lai_uu_dai_range": "Từ 7.49 - 12%/năm",
+      "uu_dai_real": true,
+      "nguon_uu_dai": "topi.vn (T2026-03)"
     },
     "tpbank": {
       "ten": "TPBank",
       "webgia": "TPBank",
-      "lai_uu_dai": 5.8,
+      "lai_uu_dai": 6.4,
       "uu_dai_thang": 12,
       "lai_tha_noi": 10.4,
       "bien_do": 4.2,
       "ltv_max": 0.7,
-      "ky_han_max": 20,
+      "ky_han_max": 30,
       "dti_max": 0.65,
       "ghi_chu": "Ưu đãi 5,8%/năm 12 tháng đầu, sau thả nổi (LS tiết kiệm 12T + ~4,2%). Vay tối đa 70% giá trị.",
       "ls_tiet_kiem_12m": 6.2,
       "lai_real": true,
       "lai_tha_noi_goc": 11.2,
       "ls_tham_chieu": 6.2,
-      "ls_ky_han": "12T"
+      "ls_ky_han": "12T",
+      "topi": "TPBank",
+      "lai_uu_dai_range": "Từ 6.4 - 12.03%/năm",
+      "uu_dai_real": true,
+      "nguon_uu_dai": "topi.vn (T2026-03)"
     },
     "vpbank": {
       "ten": "VPBank",
       "webgia": "VPBank",
-      "lai_uu_dai": 9.7,
+      "lai_uu_dai": 6.9,
       "uu_dai_thang": 12,
       "lai_tha_noi": 11.8,
       "bien_do": 3.5,
@@ -180,7 +198,10 @@
       "ky_han_tham_chieu": "co_so",
       "an_han_goc_thang": 24,
       "phi_tra_truoc": "Năm 1: 2,5%; năm 2: 2%; năm 3: 1,5%; năm 4: 1%; sau năm 4: miễn phí",
-      "nguon": "HouseNow (so sánh lãi vay BĐS, ảnh user cung cấp 2026-06)"
+      "topi": "VPBank",
+      "lai_uu_dai_range": "Từ 6.9 - 12.3%/năm",
+      "uu_dai_real": true,
+      "nguon_uu_dai": "topi.vn (T2026-03)"
     },
     "shinhan": {
       "ten": "Shinhan Bank",
@@ -210,5 +231,6 @@
       "lai_real": false,
       "lai_tha_noi_goc": 9.75
     }
-  }
+  },
+  "topi_date": "2026-03"
 }

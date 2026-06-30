@@ -29,6 +29,11 @@
 - **webgia.com** (Playwright) — LS **tiền gửi** 12T/24T thật → ghép công thức trên ra lãi thả nổi
   cho bank dùng tiền gửi làm cơ sở (BIDV 24T, VCB 12T, VietinBank 24T, Agribank 24T). Bank dùng
   "lãi cơ sở" (MB, ACB, VPBank) → tạm lấy tiền gửi 12T làm xấp xỉ (cờ `tha_noi_uoc_tinh`).
+- **topi.vn/lai-suat-vay-mua-nha.html** (Playwright) — bảng ~30 NHTM **tư nhân** (có mốc tháng):
+  lãi ưu đãi (range "Từ X-Y%"), thời gian ưu đãi, thời hạn vay tối đa, hạn mức. Dùng cho
+  **ACB, MB, Techcombank, TPBank, VPBank, Sacombank** (fix các bank webgia/HouseNow không có).
+  ⚠️ topi KHÔNG có big-4 (BIDV/VCB/VietinBank/Agribank), HSBC, Shinhan. LTV chỉ lấy khi text ghi
+  "% giá trị" (bỏ "% nhu cầu vốn" mơ hồ), cap 85%. Lãi ưu đãi = sàn của range (mức "từ").
 - **shinhan.com.vn** — chỉ LTV 80% + kỳ hạn 50 năm (lãi không công bố).
 
 ## 2. Trạng thái THẬT / MOCK từng ngân hàng (cập nhật 2026-06-30)
@@ -42,12 +47,12 @@ là **ước tính** (tiết kiệm thật + biên độ MOCK) chứ chưa phả
 | **Vietcombank** | 🟢 10,5%/12T | 🟢 9,4% (tiền gửi 12T 5,9% + 3,5%) | 🟢 80% | 🟢 30n | HouseNow + webgia |
 | **VietinBank** | 🟢 12%/12T | 🟢 10,5% (tiền gửi 24T 6,0% + 4,5%) | 🟢 75% | 🟢 35n | HouseNow + webgia |
 | **Agribank** | 🟢 10,5%/12T | 🟢 9,0% (tiền gửi 24T 6,0% + 3,0%) | 🟢 80% | 🟢 35n | HouseNow + webgia |
-| **MB Bank** | 🟢 9,9%/12T | 🔴 10,8% mock (cơ sở + 3,5% — chưa cào được lãi cơ sở) | 🟢 80% | 🟢 35n | HouseNow (thiếu cơ sở) |
-| **VPBank** | 🟢 9,7%/12T | 🔴 11,8% mock (cơ sở + 3,5% — chưa cào được lãi cơ sở) | 🟢 80% | 🟢 35n | HouseNow (thiếu cơ sở) |
-| **ACB** | 🟢 11%/12T | 🔴 11,0% mock (cơ sở + 3,5% — chưa cào được lãi cơ sở) | 🟢 80% | 🟢 30n | HouseNow (thiếu cơ sở) |
-| **TPBank** | 🔴 mock | 🟡 10,4% (tiền gửi 12T 6,2% + 4,2% mock) | 🔴 mock 70% | 🔴 mock 20n | webgia (ko có trong ảnh) |
-| **Techcombank** | 🔴 mock | 🔴 mock 11,0% | 🔴 mock 70% | 🔴 mock 25n | cần link riêng |
-| **Sacombank** | 🔴 mock | 🔴 mock 11,5% | 🔴 mock 70% | 🔴 mock 25n | cần link riêng |
+| **MB Bank** | 🟢 6%/từ (topi) | 🔴 10,8% mock (lãi cơ sở — chưa cào được) | 🟢 80% | 🟢 35n | topi.vn T3/2026 |
+| **VPBank** | 🟢 6,9%/từ (topi) | 🔴 11,8% mock (lãi cơ sở — chưa cào được) | 🟢 80% | 🟢 35n | topi.vn T3/2026 |
+| **ACB** | 🟢 6,9%/từ (topi) | 🔴 11,0% mock (lãi cơ sở — chưa cào được) | 🟢 85% | 🟢 15n | topi.vn T3/2026 |
+| **TPBank** | 🟢 6,4%/từ (topi) | 🟡 10,4% (tiền gửi 12T 6,2% + 4,2% mock) | 🟢 70% | 🟢 30n | topi + webgia |
+| **Techcombank** | 🟢 5,99%/từ (topi) | 🔴 mock 11,0% | 🟢 70% | 🟢 35n | topi.vn T3/2026 |
+| **Sacombank** | 🟢 7,49%/từ (topi) | 🔴 mock 11,5% | 🟢 70% | 🟢 30n | topi.vn T3/2026 |
 | **Shinhan Bank** | 🔴 mock | 🔴 mock 9,9% | 🟢 80% | 🟢 50n | shinhan.com.vn (LTV/kỳ hạn) |
 | **HSBC** | 🔴 mock | 🔴 mock 9,75% | 🔴 mock 70% | 🔴 mock 25n | cần link riêng |
 
@@ -86,6 +91,10 @@ Cột "Dùng được?" mình sẽ test & đánh dấu, rồi viết crawler ri�
 - Đang dùng **10% (HouseNow)** vì sát chi phí vay thực tế hơn. Nếu muốn hiển thị "từ 3,9%" thì
   hiểu là sàn quảng cáo. Khi viết crawler BIDV: parse được "từ X%/năm" từ trang khuyến mãi (số có,
   nhưng là mức sàn) → cân nhắc dùng làm `lai_uu_dai_san` riêng, không thay 10%.
+
+### ✅ Đã test & DÙNG ĐƯỢC (đang crawl)
+- `webgia.com/lai-suat/` (Playwright): LS **tiền gửi** 12T/24T → suy lãi thả nổi (BIDV/VCB/VietinBank/Agribank/TPBank).
+- `topi.vn/lai-suat-vay-mua-nha.html` (Playwright): lãi ưu đãi/thời hạn/LTV bank **tư nhân** (ACB/MB/Techcombank/TPBank/VPBank/Sacombank), có mốc tháng.
 
 ### Đã test & KHÔNG dùng được (khỏi thử lại)
 - `thebank.vn/*`, `cafef.vn`, `24hmoney.vn`: bảng render JS / không có bảng bank+%.
