@@ -105,8 +105,8 @@
     <div style="display:flex; align-items:end;"><button type="submit">Tính</button></div>
   </form>
 
+  <div class="rate-badge" id="rateBadge" {% if not bank or bank_key == 'tu_nhap' %}style="display:none;"{% endif %}>
   {% if bank and bank_key != 'tu_nhap' %}
-  <div class="rate-badge">
     <span class="pill">{{ bank.ten }}</span>
     {% if bank.lai_real %}<span class="pill" style="background:#dcfce7;color:#16a34a;">lãi thật</span>
     {% else %}<span class="pill" style="background:#fef3c7;color:#b45309;" title="webgia.com không công bố LS tiết kiệm của ngân hàng này nên lãi thả nổi là mức tham khảo (không cào được)">tham khảo</span>{% endif %}
@@ -316,9 +316,27 @@
 {% endif %}
 
 <script>
+  const BANKS = {{ banks_json|safe }};
+  const FETCHED_AT = {{ rates_meta.fetched_at|tojson }};
+
+  // Đổi ngân hàng → cập nhật NGAY dòng mô tả (không cần bấm Tính) + ẩn/hiện ô lãi tự nhập.
   function onBank() {
     const v = document.getElementById('bankSel').value;
     document.getElementById('laiBox').style.display = (v === 'tu_nhap') ? '' : 'none';
+    const badge = document.getElementById('rateBadge');
+    const b = BANKS[v];
+    if (v === 'tu_nhap' || !b) { badge.style.display = 'none'; return; }
+    badge.style.display = '';
+    const realPill = b.lai_real
+      ? '<span class="pill" style="background:#dcfce7;color:#16a34a;">lãi thật</span>'
+      : '<span class="pill" style="background:#fef3c7;color:#b45309;" title="Chưa cào được lãi thật — mức tham khảo">tham khảo</span>';
+    const deriv = b.lai_real
+      ? ` <span title="Lãi thả nổi = LS tiết kiệm 12T (thật) + biên độ">(= tiết kiệm 12T ${b.ls_tiet_kiem_12m}% + biên độ ${b.bien_do}%)</span>` : '';
+    badge.innerHTML =
+      `<span class="pill">${b.ten}</span> ${realPill} ` +
+      `Ưu đãi <b>${b.lai_uu_dai}%/năm</b> (${b.uu_dai_thang} tháng) → thả nổi <b>${b.lai_tha_noi}%/năm</b>${deriv} · ` +
+      `Vay tối đa <b>${Math.round(b.ltv_max*100)}%</b> · Kỳ hạn tới <b>${b.ky_han_max} năm</b>` +
+      (FETCHED_AT ? ` · cập nhật ${FETCHED_AT}` : '');
   }
 
   // Lấy lãi thật theo yêu cầu — gọi endpoint, không reload toàn trang ngay; báo kết quả rồi reload nếu thành công.

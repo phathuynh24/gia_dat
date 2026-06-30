@@ -385,6 +385,7 @@ def vay_von():
         compare=compare,
         story=story,
         banks=bank_rates.bank_choices(),
+        banks_json=json.dumps({k: v for k, v in banks.items()}),
         bank=bank,
         bank_key=bank_key,
         rates_meta={"fetched_at": rates.get("fetched_at"),
