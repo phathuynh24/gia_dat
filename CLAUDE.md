@@ -17,6 +17,7 @@ Luồng: **Crawl thủ công → Parser tiếng Việt → SQLite → Web (Flask
 | `src/crawler.py` | Cào batdongsan.com bằng Playwright (chạy thủ công, delay 3–7s + rotate UA) |
 | `src/crawler_chotot.py` | Cào Chợ Tốt/nhatot qua **API JSON** (không cần Playwright) |
 | `src/crawler_mogi.py` | Cào mogi.vn (HTML server-render) — chỉ mức QUẬN, không có phường |
+| `src/crawler_duan.py` | Cào DANH MỤC DỰ ÁN sơ cấp batdongsan (Playwright) → bảng `projects` |
 | `src/parser.py` | Parse tin rao tiếng Việt → trường chuẩn (regex; hook Claude API tùy chọn) |
 | `src/import_data.py` | Parse data thô crawl → nạp DB (dedupe theo URL) |
 | `src/seed.py` | Sinh data MOCK để chạy thử (khác hẳn data thật) |
@@ -84,6 +85,14 @@ Luồng: **Crawl thủ công → Parser tiếng Việt → SQLite → Web (Flask
   (chỉ số cụm + link, không bê bảng). Mini-card "💰 Tính vay nhanh" đầu trang → nhảy `/vay-von`.
   - Bubble map (cũ /heatmap): KHÔNG dùng tile/geocoding ngoài; Chart.js bubble tại centroid phường
     (`src/geo.py`, xấp xỉ), màu xanh→đỏ theo giá/m², size theo số tin.
+- **Trang `/du-an`** (Dự án mở bán — sơ cấp): danh mục dự án chung cư **đang/sắp mở bán** để
+  mua trực tiếp từ CĐT (giá tốt hơn thứ cấp). Bảng `projects` (khác `listings`), nạp bằng
+  `crawler_duan.py` (Playwright, batdongsan mục dự án, toàn HCM). Lọc theo quận; loại "đã bàn giao".
+  ⚠️ batdongsan để **đa số dự án HCM trạng thái "đang cập nhật"** (ít gắn nhãn sắp/đang mở bán) →
+  `list_projects` mặc định gồm cả `dang_cap_nhat`. Card nổi bật (sắp/đang mở bán) là TOÀN QUỐC →
+  đã loại (chỉ lấy list chính `re__prj-card-full`). Trang chính ~10 dự án, KHÔNG có phân trang `/pN`.
+  Giá/CĐT thường ở trang chi tiết (card chỉ có tên/trạng thái/địa chỉ/quy mô) → link ra batdongsan.
+  `db.upsert_projects` dedupe theo url. Nav tab riêng "Dự án mở bán".
 - **Đồng bộ loại BĐS toàn app**: `loai_bds` **sticky qua session** (giống quận) — chọn ở tab nào
   thì mọi tab giữ nguyên. Mặc định **`chung_cu`** (đứng đầu `LOAI_BDS_LABEL`), rồi nhà riêng, đất nền.
 - **Bản đồ vị trí TỪNG tin** (dashboard, cột "Vị trí"): nút `📍 Bản đồ` mỗi dòng → bung hàng

@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block extra_head %}
+<style>
+  .intro { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 12px;
+           padding: 14px 18px; margin-bottom: 20px; font-size: 14px; color: #1e3a5f; }
+  .proj-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+  @media (max-width: 760px) { .proj-grid { grid-template-columns: 1fr; } }
+  .proj { background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+          padding: 16px 18px; display: flex; flex-direction: column; gap: 8px; }
+  .proj h3 { margin: 0; font-size: 16px; }
+  .proj .meta { font-size: 13px; color: var(--muted); }
+  .st { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 10px;
+        border-radius: 999px; width: fit-content; }
+  .st-sap { background: #fef3c7; color: #b45309; }
+  .st-dang { background: #dcfce7; color: #16a34a; }
+  .st-cn { background: #f1f5f9; color: #64748b; }
+  .proj .cfg { font-size: 12px; color: var(--ink); }
+  .proj a.go { margin-top: auto; font-size: 13px; font-weight: 600; color: var(--accent);
+               text-decoration: none; }
+  .proj a.go:hover { text-decoration: underline; }
+  .filterbar { display: flex; gap: 10px; align-items: end; margin-bottom: 18px; flex-wrap: wrap; }
+</style>
+{% endblock %}
+{% block content %}
+
+<div class="intro">
+  🏗️ <b>Dự án chung cư sơ cấp</b> (đang/sắp mở bán) — mua trực tiếp từ <b>chủ đầu tư</b>.
+  Mua lúc còn là dự án thường <b>giá tốt hơn</b> mua lại qua tay (thứ cấp), nhưng đổi lại
+  <b>rủi ro tiến độ/pháp lý</b> — nên kiểm tra kỹ CĐT, giấy phép, hợp đồng mua bán.
+  Bấm vào từng dự án để xem chi tiết giá &amp; tiến độ trên batdongsan.
+</div>
+
+<div class="card">
+  <form method="get" class="filterbar" style="margin:0;">
+    <div>
+      <label>Lọc theo quận</label>
+      <select name="quan_du_an" onchange="this.form.submit()" style="width:auto;">
+        <option value="">Tất cả ({{ projects|length }})</option>
+        {% for q in quan_list %}
+        <option value="{{ q }}" {% if sel_quan == q %}selected{% endif %}>{{ q }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <span class="muted" style="align-self:center;">
+      Nguồn: batdongsan (mục dự án). Trạng thái:
+      🟢 đang mở bán {{ status_counts.get('dang_mo_ban', 0) }} ·
+      🟡 sắp mở bán {{ status_counts.get('sap_mo_ban', 0) }} ·
+      ⚪ đang cập nhật {{ status_counts.get('dang_cap_nhat', 0) }}
+    </span>
+  </form>
+</div>
+
+{% if not projects %}
+<div class="card"><p class="muted">Chưa có dự án. Chạy <code>python src/crawler_duan.py</code> để cào danh mục dự án.</p></div>
+{% else %}
+<div class="proj-grid">
+  {% for p in projects %}
+  <div class="proj">
+    {% set scls = 'st-dang' if p.trang_thai == 'dang_mo_ban' else 'st-sap' if p.trang_thai == 'sap_mo_ban' else 'st-cn' %}
+    <span class="st {{ scls }}">{{ trang_thai_label.get(p.trang_thai, p.trang_thai) }}</span>
+    <h3>{{ p.ten }}</h3>
+    <div class="meta">📍 {{ p.dia_chi or p.quan or '—' }}</div>
+    {% if p.quy_mo %}<div class="cfg">📐 Quy mô: {{ p.quy_mo }}</div>{% endif %}
+    {% if p.gia_info %}<div class="cfg">💰 {{ p.gia_info }}</div>{% endif %}
+    <a class="go" href="{{ p.url }}" target="_blank" rel="noopener">Xem chi tiết giá &amp; tiến độ ↗</a>
+  </div>
+  {% endfor %}
+</div>
+<p class="muted" style="margin-top:16px;">ℹ️ batdongsan để đa số dự án HCM ở trạng thái "đang cập nhật" (chưa gắn nhãn mở bán) —
+   đây vẫn là dự án sơ cấp. Giá &amp; tiến độ cụ thể xem ở trang chi tiết từng dự án.
+   Chạy lại <code>python src/crawler_duan.py</code> để cập nhật danh mục.</p>
+{% endif %}
+
+{% endblock %}

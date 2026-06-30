@@ -311,6 +311,21 @@ def trung_lap():
     )
 
 
+@app.route("/du-an")
+def du_an():
+    """Danh mục dự án chung cư SƠ CẤP (đang/sắp mở bán) — mua trực tiếp từ CĐT."""
+    quan = request.args.get("quan_du_an") or None
+    projects = db.list_projects(quan=quan)
+    return render_template(
+        "du_an.html",
+        projects=projects,
+        trang_thai_label=db.TRANG_THAI_DA,
+        quan_list=db.project_quan_list(),
+        sel_quan=quan,
+        status_counts=db.project_status_counts(),
+    )
+
+
 @app.route("/vay-von")
 def vay_von():
     """Tính vay vốn + thẩm định khả năng vay theo lãi suất THẬT của ngân hàng.

@@ -56,7 +56,35 @@ CREATE TABLE IF NOT EXISTS price_snapshots (
     n           INTEGER,
     source      TEXT    DEFAULT 'real'      -- 'real' (chụp thật) | 'demo' (minh hoạ)
 );
+
+-- Dự án chung cư sơ cấp (đang/sắp mở bán) — để mua trực tiếp từ CĐT (giá tốt hơn thứ cấp).
+-- Nguồn: batdongsan mục 'dự án' (crawler_duan.py). Khác listings (tin rao thứ cấp).
+CREATE TABLE IF NOT EXISTS projects (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    ten         TEXT    NOT NULL,
+    trang_thai  TEXT,                        -- 'sap_mo_ban' | 'dang_mo_ban' | 'da_ban_giao' | 'dang_cap_nhat'
+    chu_dau_tu  TEXT,
+    quan        TEXT,
+    district_id TEXT,
+    phuong      TEXT,
+    dia_chi     TEXT,
+    quy_mo      TEXT,                         -- diện tích/số căn/số block (text thô)
+    gia_info    TEXT,                         -- giá dự kiến (text, thường 'đang cập nhật')
+    mo_ta       TEXT,
+    url         TEXT    UNIQUE,
+    source      TEXT    DEFAULT 'batdongsan',
+    fetched_at  TEXT,
+    created_at  TEXT    DEFAULT (datetime('now'))
+);
 """
+
+# Nhãn trạng thái dự án (sơ cấp)
+TRANG_THAI_DA = {
+    "sap_mo_ban": "🟡 Sắp mở bán",
+    "dang_mo_ban": "🟢 Đang mở bán",
+    "da_ban_giao": "🔵 Đã bàn giao",
+    "dang_cap_nhat": "⚪ Đang cập nhật",
+}
 
 LOAI_DUONG_LABEL = {
     "mat_tien": "Mặt tiền",
@@ -143,6 +171,59 @@ def insert_many(rows: list[dict]):
 def count() -> int:
     with get_conn() as conn:
         return conn.execute("SELECT COUNT(*) FROM listings").fetchone()[0]
+
+
+# ---------------------------------------------------------------------------
+# Dự án chung cư sơ cấp (đang/sắp mở bán)
+# ---------------------------------------------------------------------------
+
+_PROJECT_FIELDS = ["ten", "trang_thai", "chu_dau_tu", "quan", "district_id",
+                   "phuong", "dia_chi", "quy_mo", "gia_info", "mo_ta", "url",
+                   "source", "fetched_at"]
+
+
+def upsert_projects(rows: list[dict]) -> int:
+    """Nạp dự án, dedupe theo url (UPSERT). Trả số dòng ghi."""
+    with get_conn() as conn:
+        cols = ", ".join(_PROJECT_FIELDS)
+        ph = ", ".join("?" for _ in _PROJECT_FIELDS)
+        upd = ", ".join(f"{c}=excluded.{c}" for c in _PROJECT_FIELDS if c != "url")
+        conn.executemany(
+            f"INSERT INTO projects ({cols}) VALUES ({ph}) "
+            f"ON CONFLICT(url) DO UPDATE SET {upd}",
+            [[r.get(f) for f in _PROJECT_FIELDS] for r in rows],
+        )
+        return conn.total_changes
+
+
+def list_projects(district_id: str | None = None, statuses: list | None = None,
+                  quan: str | None = None):
+    """Danh sách dự án, lọc theo trạng thái (mặc định sắp+đang mở bán) và quận."""
+    # Mặc định: dự án sơ cấp (chưa bàn giao) — gồm cả 'đang cập nhật' vì batdongsan
+    # ít gắn nhãn sắp/đang mở bán cho list HCM (đa số để 'đang cập nhật').
+    statuses = statuses or ["sap_mo_ban", "dang_mo_ban", "dang_cap_nhat"]
+    where = ["trang_thai IN (%s)" % ",".join("?" for _ in statuses)]
+    params: list = list(statuses)
+    if quan:
+        where.append("quan = ?"); params.append(quan)
+    sql = ("SELECT * FROM projects WHERE " + " AND ".join(where) +
+           " ORDER BY CASE trang_thai WHEN 'dang_mo_ban' THEN 0 ELSE 1 END, ten")
+    with get_conn() as conn:
+        return [dict(r) for r in conn.execute(sql, params).fetchall()]
+
+
+def project_quan_list() -> list[str]:
+    """Các quận có dự án (cho dropdown lọc)."""
+    with get_conn() as conn:
+        return [r[0] for r in conn.execute(
+            "SELECT DISTINCT quan FROM projects WHERE quan IS NOT NULL "
+            "AND trang_thai IN ('sap_mo_ban','dang_mo_ban') ORDER BY quan").fetchall()]
+
+
+def project_status_counts() -> dict:
+    with get_conn() as conn:
+        return {r[0]: r[1] for r in conn.execute(
+            "SELECT trang_thai, COUNT(*) FROM projects GROUP BY trang_thai").fetchall()}
 
 
 def clear():
